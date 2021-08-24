@@ -1,7 +1,7 @@
 # Linux Migration Scripts
 
 The scripts samples work on configure cloud VMs and provistion the replicated storage from Cloud Block Store during/after migration. *It works on Ubuntu machines. More Linux flavours will be added.* 
-By using the workflow Pure has designed to expedite your migration to Pure CLoud Block Store (CBS), check the links below for detailed guides:
+By using the workflow Pure has designed to expedite your migration to Pure Cloud Block Store (CBS), check the links below for detailed guides:
 [AWS Migration with  Pure Cloud Block Store](https://support.purestorage.com/Pure_Cloud_Block_Store/VMware_VM_Migratation_to_AWS_with_Cloud_Block_Store_and_AWS_Application_Migration_Services)
 
 

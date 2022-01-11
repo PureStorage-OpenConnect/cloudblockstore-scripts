@@ -4,7 +4,12 @@ from pypureclient import flasharray
 import logging
 import boto3
 
+#Retrieve environment variables 
 cbs_ip = os.environ['CBS_IP']
+cbs_username = os.environ['CBS_USERNAME']
+cbs_client_id = os.environ['CLIENT_ID']
+cbs_key_id = os.environ['KEY_ID']
+cbs_issuer = os.environ['CLIENT_API_ISSUER']
 
 #Change Directory to /tmp 
 os.chdir('/tmp')
@@ -26,10 +31,10 @@ def lambda_handler(event, context):
     #Create client and authintacte
     client = flasharray.Client(cbs_ip,
                             private_key_file='/tmp/private.pem',
-                            username='pureuser',
-                            client_id='cea503f0-b809-4682-8dd9-0a7367f1a1fa',
-                            key_id='80bd8068-30fb-4d70-a598-50b6062c3db9',
-                            issuer='lambda')
+                            username=cbs_username,
+                            client_id=cbs_client_id,
+                            key_id=cbs_key_id,
+                            issuer=cbs_issuer)
     
     try:
         array = client.get_arrays()

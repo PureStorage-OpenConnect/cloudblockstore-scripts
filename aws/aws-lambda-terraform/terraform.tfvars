@@ -1,0 +1,10 @@
+region                     = "xx.xxxxx.x"
+function_name              = "pure-lambda-terraform"
+cbs_ip                     = "xx.xx.xx.xx"
+cbs_username               = "pureuser"
+cbs_api_client_private_key = "~/.ssh/id_rsa"
+cbs_api_client_id          = "xxxxxxx-xxxxxxx-xxxxxx-xxxx-xxxx-xxx"
+cbs_api_key_id             = "xxxxxxx-xxxxxxx-xxxxxx-xxxx-xxxx-xxx"
+cbs_api_issuer             = "xxxxx"
+vpc_subnet_ids             = ["subnet-xxxxxxxxxx"]
+vpc_security_group_ids     = ["sg-xxxxxxxx"]

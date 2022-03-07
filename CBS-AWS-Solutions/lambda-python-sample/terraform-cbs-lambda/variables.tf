@@ -6,12 +6,18 @@ variable "region" {
 variable "function_name" {
   description = "A unique name for your Lambda Function"
   type        = string
-  default     = ""
+  default     = "pure-lambda-function-tf"
 }
+
 
 variable "cbs_api_client_private_key" {
   description = "file path of the private key used to in genating the cbs api client"
   type        = string
+}
+
+variable "lambda_python_script_path" {
+  description = "file path of the lambda python script location" 
+  type = string 
 }
 
 variable "cbs_ip" {

@@ -11,6 +11,11 @@ cbs_client_id = os.environ['CLIENT_ID']
 cbs_key_id = os.environ['KEY_ID']
 cbs_issuer = os.environ['CLIENT_API_ISSUER']
 
+
+#Set logging level 
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
 #Change Directory to /tmp 
 os.chdir('/tmp')
 
@@ -22,19 +27,19 @@ parameter = ssm.get_parameter(Name='/cbs/apiclient/privatekey', WithDecryption=F
 with open('private.pem', 'w') as f:
      f.write(parameter['Parameter']['Value'])
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
 
+
+#function to clean up the array
 def clean_array(ec2_id):
     
-    #Create client and authintacte
+    #Create client and authenticate
     client = flasharray.Client(cbs_ip,
                             private_key_file='/tmp/private.pem',
                             username=cbs_username,
                             client_id=cbs_client_id,
                             key_id=cbs_key_id,
                             issuer=cbs_issuer)
-                            
+    #Remove the connection and delete host and the volume attached was attached to it                        
     client.delete_connections(host_names=ec2_id, volume_names=ec2_id)
     
     client.delete_hosts(names=ec2_id)
@@ -46,7 +51,6 @@ def clean_array(ec2_id):
 
 def lambda_handler(event, context):
 
-    
     message = event['Records'][0]['Sns']['Message']
     
     if isinstance(message, str):
@@ -57,7 +61,6 @@ def lambda_handler(event, context):
     elif isinstance(message, list):
         message = message[0]
     ec2_id=message['EC2InstanceId']
-    
 
     try:
         clean_array(ec2_id)

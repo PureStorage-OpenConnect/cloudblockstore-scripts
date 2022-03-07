@@ -8,3 +8,4 @@ cbs_api_key_id             = "xxxxxxx-xxxxxxx-xxxxxx-xxxx-xxxx-xxx"
 cbs_api_issuer             = "xxxxx"
 vpc_subnet_ids             = ["subnet-xxxxxxxxxx"]
 vpc_security_group_ids     = ["sg-xxxxxxxx"]
+lambda_python_script_path  = "/xx/xxx"

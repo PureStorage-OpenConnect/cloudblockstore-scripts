@@ -24,7 +24,7 @@ DATA_VOLUME_PATH=/data
 HOSTGROUP=ASG-HGROUP
 
 # Option #1# Enter the size of the volume
-VOLSIZE=100G
+VOLSIZE=1000G
 
 # Option #2# Connect the existed shared volume to the host
 #VOLNAME=ASG-SHARED-VOLUME

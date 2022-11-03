@@ -10,7 +10,7 @@
 	  - Check if the region has enough DSv3 Family vCPU to deploy Cloud Block Store.
 	  - Check if the Ultra Disks are available and in which Availability Zone. 
 	  - Check if the System Subnet has outbound internet Access.
-      - Check if the SginInUseer has the required Azure Role Assignment.
+      - Check if the Signed In User has the required Azure Role Assignment.
 .INPUTS
       - Azure Subscription Id.
       - Cloud Block Store Model (V10 or V20).

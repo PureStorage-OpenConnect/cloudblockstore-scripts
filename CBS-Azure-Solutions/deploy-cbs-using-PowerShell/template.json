@@ -1,0 +1,298 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "tagsByResource": {
+            "type": "object",
+            "defaultValue": {},
+            "metadata": {
+                "description": "Dictionary of additional tags to be added to the array."
+            }
+        },
+        "alertRecipients": {
+            "type": "string",
+            "metadata": {
+                "description": "A comma-separated list of email addresses to which the array will send alerts."
+            }
+        },
+        "arrayName": {
+            "type": "string",
+            "metadata": {
+                "description": "The name of the array. 0-30 alphanumeric characters only."
+            }
+        },
+        "licenseKey": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Pure provided license key for production or \"CBS-TRIAL-LICENSE\" for a trial array."
+            }
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "[resourceGroup().location]"
+        },
+        "orgDomain": {
+            "type": "string",
+            "metadata": {
+                "description": "The domain name of your organization - used internally by Pure Storage Inc for telemetry and diagnostics."
+            }
+        },
+        "pureuserPublicKey": {
+            "type": "securestring",
+            "defaultValue": "",
+            "metadata": {
+                "description": "Public ssh key to allow pureuser login"
+            }
+        },
+        "sku": {
+            "type": "string",
+            "allowedValues": [
+                "V10MUR1",
+                "V20MUR1"
+            ]
+        },
+        "managementSubnet": {
+            "type": "string",
+            "metadata": {
+                "description": "Subnet containing the Array's management interfaces. Does not need internet access."
+            }
+        },
+        "systemSubnet": {
+            "type": "string",
+            "metadata": {
+                "description": "Subnet for the system interface of the Array, used for activation, telemetry, etc. Needs to have internet access."
+            }
+        },
+        "iSCSISubnet": {
+            "type": "string",
+            "metadata": {
+                "description": "Subnet containing the Array's iSCSI interfaces"
+            }
+        },
+        "replicationSubnet": {
+            "type": "string",
+            "metadata": {
+                "description": "Subnet containing the Array's Management interfaces"
+            }
+        },
+        "managementVnet": {
+            "type": "string",
+            "metadata": {
+                "description": "Virtual network for the Array's Management interfaces."
+            }
+        },
+        "systemVnet": {
+            "type": "string",
+            "metadata": {
+                "description": "Virtual network for the Array's network interfaces."
+            }
+        },
+        "iSCSIVnet": {
+            "type": "string",
+            "metadata": {
+                "description": "Virtual Network containing the Array's ISCSI interfaces"
+            }
+        },
+        "replicationVnet": {
+            "type": "string",
+            "metadata": {
+                "description": "Virtual Network containing the Array's Replication interfaces"
+            }
+        },
+        "managementResourceGroup": {
+            "type": "string",
+            "metadata": {
+                "description": "Resource Group containint the Array's Management Network Resources"
+            }
+        },
+        "systemResourceGroup": {
+            "type": "string",
+            "metadata": {
+                "description": "Resource group name for the virtual network containing the system interfaces."
+            }
+        },
+        "iSCSIResourceGroup": {
+            "type": "string",
+            "metadata": {
+                "description": "The Resource Group containging the ISCSI Virtual Network"
+            }
+        },
+        "replicationResourceGroup": {
+            "type": "string",
+            "metadata": {
+                "description": "The Resource Group containing the Replication Virtual Network"
+            }
+        },
+        "zone": {
+            "type": "int",
+            "defaultValue": 1,
+            "allowedValues": [
+                1,
+                2,
+                3
+            ],
+            "metadata": {
+                "description": "The Availability Zone within the location to deploy to"
+            }
+        },
+        "pureStorageDefaultTags": {
+            "type": "object",
+            "metadata": {
+                "description": "Deal with various versions of Microsoft's ARM-TTK empty object warnings. Should never have an actual parameter."
+            },
+            "defaultValue": {
+                "Product": "Pure:CBS"
+            }
+        },
+        "managementNewOrExisting": {
+            "type": "string",
+            "defaultValue": "existing",
+            "metadata": {
+                "description": "A Required but ignored input, required by Microsoft's ARM-TTK validation tools"
+            }
+        },
+        "systemNewOrExisting": {
+            "type": "string",
+            "defaultValue": "existing",
+            "metadata": {
+                "description": "A Required but ignored input, required by Microsoft's ARM-TTK validation tools"
+            }
+        },
+        "iscsiNewOrExisting": {
+            "type": "string",
+            "defaultValue": "existing",
+            "metadata": {
+                "description": "A Required but ignored input, required by Microsoft's ARM-TTK validation tools"
+            }
+        },
+        "replicationNewOrExisting": {
+            "type": "string",
+            "defaultValue": "existing",
+            "metadata": {
+                "description": "A Required but ignored input, required by Microsoft's ARM-TTK validation tools"
+            }
+        },
+        "applicationResourceName": {
+            "type": "string",
+            "defaultValue": "4d109be51b9b4ed09ac936ddb9981844"
+        },
+        "managedResourceGroupId": {
+            "type": "string",
+            "defaultValue": ""
+        },
+        "managedIdentity": {
+            "type": "object",
+            "defaultValue": {}
+        },
+        "jitAccessPolicy": {
+            "type": "object",
+            "defaultValue": {
+                "jitAccessEnabled": false
+            }
+        }
+    },
+    "variables": {
+        "managedResourceGroupId": "[if(empty(parameters('managedResourceGroupId')),concat(subscription().id,'/resourceGroups/',take(concat(resourceGroup().name,'-',uniquestring(resourceGroup().id),uniquestring(parameters('applicationResourceName'))),90)),parameters('managedResourceGroupId'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Solutions/applications",
+            "apiVersion": "2017-09-01",
+            "location": "[resourceGroup().Location]",
+            "kind": "MarketPlace",
+            "name": "[parameters('applicationResourceName')]",
+           "plan": {    
+                "name": "cbs_azure_6_3_5",    
+                "product": "pure_storage_cloud_block_store_deployment",    
+                "publisher": "purestoragemarketplaceadmin",    
+                "version": "1.0.0"    
+            },
+            
+            "identity": "[if(empty(parameters('managedIdentity')),json('null'),parameters('managedIdentity'))]",
+            "properties": {
+                "managedResourceGroupId": "[variables('managedResourceGroupId')]",
+                "parameters": {
+                    "tagsByResource": {
+                        "value": "[parameters('tagsByResource')]"
+                    },
+                    "alertRecipients": {
+                        "value": "[parameters('alertRecipients')]"
+                    },
+                    "arrayName": {
+                        "value": "[parameters('arrayName')]"
+                    },
+                    "licenseKey": {
+                        "value": "[parameters('licenseKey')]"
+                    },
+                    "location": {
+                        "value": "[parameters('location')]"
+                    },
+                    "orgDomain": {
+                        "value": "[parameters('orgDomain')]"
+                    },
+                    "pureuserPublicKey": {
+                        "value": "[parameters('pureuserPublicKey')]"
+                    },
+                    "sku": {
+                        "value": "[parameters('sku')]"
+                    },
+                    "managementSubnet": {
+                        "value": "[parameters('managementSubnet')]"
+                    },
+                    "systemSubnet": {
+                        "value": "[parameters('systemSubnet')]"
+                    },
+                    "iSCSISubnet": {
+                        "value": "[parameters('iSCSISubnet')]"
+                    },
+                    "replicationSubnet": {
+                        "value": "[parameters('replicationSubnet')]"
+                    },
+                    "managementVnet": {
+                        "value": "[parameters('managementVnet')]"
+                    },
+                    "systemVnet": {
+                        "value": "[parameters('systemVnet')]"
+                    },
+                    "iSCSIVnet": {
+                        "value": "[parameters('iSCSIVnet')]"
+                    },
+                    "replicationVnet": {
+                        "value": "[parameters('replicationVnet')]"
+                    },
+                    "managementResourceGroup": {
+                        "value": "[parameters('managementResourceGroup')]"
+                    },
+                    "systemResourceGroup": {
+                        "value": "[parameters('systemResourceGroup')]"
+                    },
+                    "iSCSIResourceGroup": {
+                        "value": "[parameters('iSCSIResourceGroup')]"
+                    },
+                    "replicationResourceGroup": {
+                        "value": "[parameters('replicationResourceGroup')]"
+                    },
+                    "zone": {
+                        "value": "[parameters('zone')]"
+                    },
+                    "pureStorageDefaultTags": {
+                        "value": "[parameters('pureStorageDefaultTags')]"
+                    },
+                    "managementNewOrExisting": {
+                        "value": "[parameters('managementNewOrExisting')]"
+                    },
+                    "systemNewOrExisting": {
+                        "value": "[parameters('systemNewOrExisting')]"
+                    },
+                    "iscsiNewOrExisting": {
+                        "value": "[parameters('iscsiNewOrExisting')]"
+                    },
+                    "replicationNewOrExisting": {
+                        "value": "[parameters('replicationNewOrExisting')]"
+                    }
+                },
+                "jitAccessPolicy": "[parameters('jitAccessPolicy')]"
+            }
+        }
+    ]
+}

@@ -58,22 +58,22 @@ param (
     [Parameter(Mandatory = $true, HelpMessage = "Enter your System Subnet name")]
     [ValidateNotNullOrEmpty()]
     [string]
-    $cbsSystemSubentName,
+    $cbsSystemSubnetName,
 
     [Parameter(Mandatory = $true, HelpMessage = "Enter your Management Subnet name")]
     [ValidateNotNullOrEmpty()]
     [string]
-    $cbsMngmtSubentName,
+    $cbsMngmtSubnetName,
 
     [Parameter(Mandatory = $true, HelpMessage = "Enter your iSCSI Subnet name")]
     [ValidateNotNullOrEmpty()]
     [string]
-    $cbsiSCSiSubentName,
+    $cbsiSCSiSubnetName,
 
     [Parameter(Mandatory = $true, HelpMessage = "Enter your Replication Subnet name")]
     [ValidateNotNullOrEmpty()]
     [string]
-    $cbsReplicaSubentName
+    $cbsReplicaSubnetName
 )
 
 # Hardcoded template file url
@@ -93,9 +93,9 @@ if ($null -eq $resourceGroup) {
 }
 
 $PSvnet = Get-AzVirtualNetwork -Name $cbsVNETName
-$PSSubnet = Get-AzVirtualNetworkSubnetConfig -Name $cbsSystemSubentName -VirtualNetwork $PSvnet
+$PSSubnet = Get-AzVirtualNetworkSubnetConfig -Name $cbsSystemSubnetName -VirtualNetwork $PSvnet
 if ($null -eq $PSSubnet) {
-    Write-Host "Caution: No subnet found by the name '$cbsSystemSubentName'"
+    Write-Host "Caution: No subnet found by the name '$cbsSystemSubnetName'"
     Exit
 }
 
@@ -116,10 +116,10 @@ New-AzResourceGroupDeployment `
     -systemVnet $cbsVNETName `
     -iSCSIVnet $cbsVNETName `
     -replicationVnet $cbsVNETName `
-    -systemSubnet $cbsSystemSubentName `
-    -iSCSISubnet $cbsiSCSiSubentName `
-    -replicationSubnet $cbsReplicaSubentName `
-    -managementSubnet $cbsMngmtSubentName `
+    -systemSubnet $cbsSystemSubnetName `
+    -iSCSISubnet $cbsiSCSiSubnetName `
+    -replicationSubnet $cbsReplicaSubnetName `
+    -managementSubnet $cbsMngmtSubnetName `
     -alertRecipients $alertRecipients `
     -orgDomain $orgDomain
 

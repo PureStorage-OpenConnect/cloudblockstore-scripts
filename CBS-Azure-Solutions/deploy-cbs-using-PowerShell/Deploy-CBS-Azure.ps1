@@ -77,7 +77,7 @@ param (
 )
 
 # Hardcoded template file url
-$templateUri= "https://"
+$templateFile = "https://raw.githubusercontent.com/PureStorage-OpenConnect/cloudblockstore-scripts/main/CBS-Azure-Solutions/deploy-cbs-using-PowerShell/template.json"
 
 
 ## Connect to Azure Account
@@ -88,7 +88,7 @@ Set-AzContext -Subscription $subscriptionId -WarningAction silentlyContinue | Ou
 # Resource_Group
 $resourceGroup = (Get-AzVirtualNetwork -Name $cbsVNETName).ResourceGroupName
 if ($null -eq $resourceGroup) {
-    Write-Host "Caution: No virtual network found by the name '$cbsVNETName'."
+    Write-Host "Caution: No virtual network found by the name '$cbsVNETName'"
     Exit
 }
 

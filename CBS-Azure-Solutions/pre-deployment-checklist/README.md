@@ -10,4 +10,4 @@ This script will validate and verify the following:
 - Check if the region has enough DSv3 Family vCPU to deploy Cloud Block Store.
 - Check if the Ultra Disks are available and in which Availability Zone.
 - Check if the System Subnet has outbound internet access.
-- Check if the SginInUseer has the required Azure Role Assignment.
+- Check if the Signed In User has the required Azure Role Assignment.

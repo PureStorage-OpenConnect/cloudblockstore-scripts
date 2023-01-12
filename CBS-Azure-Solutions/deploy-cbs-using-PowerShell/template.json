@@ -174,7 +174,7 @@
         },
         "applicationResourceName": {
             "type": "string",
-            "defaultValue": "4d109be51b9b4ed09ac936ddb9981844"
+            "defaultValue": "b1687f0cf7344714a72ec68545ac1c00"
         },
         "managedResourceGroupId": {
             "type": "string",
@@ -201,13 +201,12 @@
             "location": "[resourceGroup().Location]",
             "kind": "MarketPlace",
             "name": "[parameters('applicationResourceName')]",
-           "plan": {    
-                "name": "cbs_azure_6_3_5",    
-                "product": "pure_storage_cloud_block_store_deployment",    
-                "publisher": "purestoragemarketplaceadmin",    
-                "version": "1.0.0"    
+            "plan": {
+                "name": "cbs_azure_6_4_0",
+                "product": "pure_storage_cloud_block_store_deployment",
+                "publisher": "purestoragemarketplaceadmin",
+                "version": "1.0.8"
             },
-            
             "identity": "[if(empty(parameters('managedIdentity')),json('null'),parameters('managedIdentity'))]",
             "properties": {
                 "managedResourceGroupId": "[variables('managedResourceGroupId')]",

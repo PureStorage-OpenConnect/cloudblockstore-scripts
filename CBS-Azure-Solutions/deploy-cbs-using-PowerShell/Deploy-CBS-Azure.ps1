@@ -77,7 +77,7 @@ param (
 )
 
 # Hardcoded template file url
-$templateFile = "https://raw.githubusercontent.com/PureStorage-OpenConnect/cloudblockstore-scripts/main/CBS-Azure-Solutions/deploy-cbs-using-PowerShell/template.json"
+$templateUri = "https://raw.githubusercontent.com/PureStorage-OpenConnect/cloudblockstore-scripts/main/CBS-Azure-Solutions/deploy-cbs-using-PowerShell/template.json"
 
 
 ## Connect to Azure Account

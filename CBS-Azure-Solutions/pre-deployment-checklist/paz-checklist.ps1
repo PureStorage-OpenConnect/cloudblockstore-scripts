@@ -38,7 +38,6 @@ param (
     )]         
     [string]
     $subscriptionId,
-    
 
     [Parameter(Mandatory = $true, HelpMessage = "cbsModel v10 or v20")]
     [ValidateNotNullOrEmpty()]
@@ -61,7 +60,7 @@ param (
 Select-AzSubscription -SubscriptionId $subscriptionId -WarningAction silentlyContinue | Out-Null
 
 # Assign a tmp test vm name
-$testVMName = "CBS_Pre_Deploy_Checklist_VM"
+$testVMName = "CBS_PreDeploy_Checklist_VM"
 
 
 # Resource_Group

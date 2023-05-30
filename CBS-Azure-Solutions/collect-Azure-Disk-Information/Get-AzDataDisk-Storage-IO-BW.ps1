@@ -37,13 +37,9 @@ param (
     $subscriptionId,
 
     
-    [Parameter(Mandatory = $false, HelpMessage = "(Optional) Enter your Resource Group Name")]
-    [ValidateScript(
-        { $null -ne (Get-AzResourceGroup -name $_ -WarningAction silentlyContinue) },
-        ErrorMessage = "Resource Group was not found in tenant {0}."
-    )]  
+    [Parameter(HelpMessage = "(Optional) Enter your Resource Group Name")]  
     [string]
-    $resourceGroup
+    $resourceGroupName
 )
 
 # # Connect to your Azure account
@@ -57,11 +53,18 @@ if (-not(Get-Module Az.Accounts)) {
     Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force
 }
 
-if ([string]::IsNullOrEmpty($resourceGroup))  {
-    $virtualMachines = Get-AzVM -ResourceGroupName $resourceGroup
+if (-not [string]::IsNullOrEmpty($resourceGroupName)) {
+    if (Get-AzResourceGroup -name $resourceGroupName -WarningAction silentlyContinue) {
+        $virtualMachines = Get-AzVM -ResourceGroupName $resourceGroupName
+    } else {
+        Write-Host "The Resource Group Name entered does not exist" -ForegroundColor Red
+        Exit
+    }
 } else {
     # Get all the virtual machines in your subscription
     $virtualMachines = Get-AzVM 
+    Write-Host "#_________________________________________________________"
+    Write-Host "# No Resource Group Selected, All Virtual Machine info in the subscription will be collected" -ForegroundColor Yellow
 }
 
 

@@ -17,4 +17,4 @@ code Get-AzDataDisk-Storage-IO-BW.ps1
 `-resourceGroup` (OPTIONAL) If selected only the virtual machine within the resource group will be scoped for the info collection. 
 
 ## Output Screenshot
-![screenshot](/cloudblockstore-scripts/CBS-Azure-Solutions/collect-Azure-Disk-Information/output_example.jpg)
+![screenshot](/CBS-Azure-Solutions/collect-Azure-Disk-Information/output_example.jpg)

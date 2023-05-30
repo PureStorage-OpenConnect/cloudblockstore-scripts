@@ -17,4 +17,11 @@ code Get-AzDataDisk-Storage-IO-BW.ps1
 `-resourceGroup` (OPTIONAL) If selected only the virtual machine within the resource group will be scoped for the info collection. 
 
 ## Output Screenshot
-![screenshot](/CBS-Azure-Solutions/collect-Azure-Disk-Information/output_example.jpg)
+
+1. Display the data disk information as a table on the terminal
+![screenshot_1](/CBS-Azure-Solutions/collect-Azure-Disk-Information/output_example.jpg)
+
+2. Save the information as a CSV
+![screenshot_2](/CBS-Azure-Solutions/collect-Azure-Disk-Information/CSV_Screenshot.jpg)
+
+ 

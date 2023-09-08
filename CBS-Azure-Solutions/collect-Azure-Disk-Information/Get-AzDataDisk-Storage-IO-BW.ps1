@@ -1,12 +1,14 @@
 <#
   Get-AzDataDisk-IO-BW.ps1 
-  Version:        1.0.1
-  Author:         Adam Mazouz @ Pure Storage
+  Version:        1.2
+  Authors:        Adam Mazouz @ Pure Storage
+                  Vaclav Jirvosky @ Pure Storage
 .SYNOPSIS
     This script retrives all Azure Managed Data Disks attached to Azure VM. It lists Size, IOPS, BW, OS, Availability Zone, Disk SKU Name
 
 .CHANGELOG
-    - Added peak (Max) Consumed IOPS and Bandwidth infomration
+    - 1.2 Improved execution time by adding concurrency 
+    - 1.1 Added peak (Max) Consumed IOPS and Bandwidth infomration
 .INPUTS
       - Azure Subscription Id.
       - Resource Group 
@@ -69,16 +71,28 @@ if (-not [string]::IsNullOrEmpty($resourceGroupName)) {
 
 
 # Initialize an array to store the data disk information
-$dataDiskInfo = @()
+$dataDiskInfoTSDictionary = [System.Collections.Concurrent.ConcurrentDictionary[string,object]]::new()
 ################################################
 
 # Loop through each virtual machine
-foreach ($vm in $virtualMachines) {
+$virtualMachines | ForEach-Object -Parallel {
+    $vm = $_
+    $subscriptionId = $using:subscriptionId
+    $resourceGroupName = $using:resourceGroupName
+    $dataDiskInfoTSDictionary = $using:dataDiskInfoTSDictionary
 
-    # Get the data disks attached to the virtual machine
-    $dataDisks = $vm.StorageProfile.DataDisks
+     # Get the data disks attached to the virtual machine
+     $dataDisks = $vm.StorageProfile.DataDisks
 
-    foreach ($dataDisk in $dataDisks) {
+     $dataDisks | ForEach-Object -Parallel {
+         $dataDisk = $_
+             
+         $subscriptionId = $using:subscriptionId
+         $resourceGroupName = $using:resourceGroupName
+         $vm = $using:vm
+         $dataDiskInfoTSDictionary = $using:dataDiskInfoTSDictionary
+
+
         # Get the size, IOPS, and bandwidth of the data disk
         $diskSize = Get-AzDisk -ResourceGroupName $vm.ResourceGroupName -DiskName $dataDisk.Name | Select-Object -ExpandProperty DiskSizeGB
         $diskIops = Get-AzDisk -ResourceGroupName $vm.ResourceGroupName -DiskName $dataDisk.Name | Select-Object -ExpandProperty DiskIOPSReadWrite
@@ -158,16 +172,17 @@ foreach ($vm in $virtualMachines) {
             }
 
             # Add the hashtable to the array
-            $dataDiskInfo += New-Object -TypeName PSObject -Property $dataDiskHashtable
+            $outputObject = New-Object -TypeName PSObject -Property $dataDiskHashtable
+            $dataDiskInfoTSDictionary[$dataDisk.Name] = $outputObject;
         }
     }
 }
 ################################################
 
 # Display the data disk information as a table
-$dataDiskInfo | Format-Table VMName, Location, AvailabilityZone, OperatingSystem, DataDiskName, DiskSKU, SizeGB, Provisioned_IOPS, Utilized_Read_IOPS, Utilized_Write_IOPS, Provisioned_BW_MBps, Utilized_Read_Avg_BW_MBps, Utilized_Read_Max_BW_MBps, Utilized_Write_Avg_BW_MBps, Utilized_Write_Max_BW_MBps  
+$dataDiskInfoTSDictionary.Values | Format-Table VMName, Location, AvailabilityZone, OperatingSystem, DataDiskName, DiskSKU, SizeGB, Provisioned_IOPS, Utilized_Read_IOPS, Utilized_Write_IOPS, Provisioned_BW_MBps, Utilized_Read_Avg_BW_MBps, Utilized_Read_Max_BW_MBps, Utilized_Write_Avg_BW_MBps, Utilized_Write_Max_BW_MBps  
 
 $reportName = "AzureDataDisk.csv"
-$dataDiskInfo  | Export-csv .\$reportName
+$dataDiskInfoTSDictionary.Values  | Export-csv .\$reportName
 
 

@@ -6,8 +6,10 @@ Follow the below step to collect Azure VM data disk information.
     * Install-Module -Name AWS.Tools.Installer
 2. Install EC2 & EBS Module
     * Install-AWSToolsModule AWS.Tools.EC2,AWS.Tools.EBS
-3. Copy/Download the script Get-AWS-EBS-Volume-Information.ps1
-4. Execute the script.
+3. Log in to AWS CLI
+    * New-AWSCredential (Can use Credential or Keys)
+4. Copy/Download the script Get-AWS-EBS-Volume-Information.ps1
+5. Execute the script.
 
 ```powershell
 .\Get-AWS-EBS-Volume-Information.ps1

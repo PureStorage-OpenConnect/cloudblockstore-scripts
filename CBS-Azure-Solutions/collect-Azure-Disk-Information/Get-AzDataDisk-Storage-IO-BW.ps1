@@ -108,7 +108,7 @@ $virtualMachines | ForEach-Object -Parallel {
         if ([string]::IsNullOrWhiteSpace($availabilityZone)) {
             $availabilityZone = "No Zone"
         } else {
-            $availabilityZone = $vm.Zones
+            $availabilityZone = $vm.Zones | Select-Object -Index 0
         }
 
         # Get consumed utilized storage IO (IOPS,BW) for the data disk
@@ -129,18 +129,18 @@ $virtualMachines | ForEach-Object -Parallel {
 
         foreach ($Metric in $metrics)
         {
-            $Resuts += $Metric.Data | Select-Object TimeStamp, Average, @{Name="Metric"; Expression={$Metric.Name.Value}}
+            $Results += $Metric.Data | Select-Object TimeStamp, Average, @{Name="Metric"; Expression={$Metric.Name.Value}}
         }
         ################################################
                     # -AggregationType Average `
                     # -TimeGrain $TimeGrain `
-        # $Resuts | Sort-Object -Property TimeStamp, Metric | Format-Table
-        $disk_IOPS_read_Avg = ($Resuts | Where-Object { $_.Metric -eq "Composite Disk Read Operations/sec" } | Measure-Object -Property Average -Average).Average 
-        $disk_IOPS_write_Avg = ($Resuts | Where-Object { $_.Metric -eq "Composite Disk Write Operations/sec" } | Measure-Object -Property Average -Average).Average  
-        $disk_BW_read_Avg = ($Resuts | Where-Object { $_.Metric -eq "Composite Disk Read Bytes/sec" } | Measure-Object -Property Average -Average).Average 
-        $disk_BW_read_Max = ($Resuts | Where-Object { $_.Metric -eq "Composite Disk Read Bytes/sec" } | Measure-Object -Property Average -Maximum).Maximum 
-        $disk_BW_write_Avg = ($Resuts | Where-Object { $_.Metric -eq "Composite Disk Write Bytes/sec" } | Measure-Object -Property Average -Average).Average  
-        $disk_BW_write_Max = ($Resuts | Where-Object { $_.Metric -eq "Composite Disk Write Bytes/sec" } | Measure-Object -Property Average -Maximum).Maximum  
+        # $Results | Sort-Object -Property TimeStamp, Metric | Format-Table
+        $disk_IOPS_read_Avg = ($Results | Where-Object { $_.Metric -eq "Composite Disk Read Operations/sec" } | Measure-Object -Property Average -Average).Average 
+        $disk_IOPS_write_Avg = ($Results | Where-Object { $_.Metric -eq "Composite Disk Write Operations/sec" } | Measure-Object -Property Average -Average).Average  
+        $disk_BW_read_Avg = ($Results | Where-Object { $_.Metric -eq "Composite Disk Read Bytes/sec" } | Measure-Object -Property Average -Average).Average 
+        $disk_BW_read_Max = ($Results | Where-Object { $_.Metric -eq "Composite Disk Read Bytes/sec" } | Measure-Object -Property Average -Maximum).Maximum 
+        $disk_BW_write_Avg = ($Results | Where-Object { $_.Metric -eq "Composite Disk Write Bytes/sec" } | Measure-Object -Property Average -Average).Average  
+        $disk_BW_write_Max = ($Results | Where-Object { $_.Metric -eq "Composite Disk Write Bytes/sec" } | Measure-Object -Property Average -Maximum).Maximum  
 
 
         # Check if the same data disk has already been added

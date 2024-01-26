@@ -1,19 +1,19 @@
 <#
   paz-checklist.ps1 - 
-  Version:        1.0.0.0
+  Version:        2.0.0
   Author:         Adam Mazouz @ Pure Storage
 .SYNOPSIS
     Checking if the prerequisites required for deploying Cloud Block Store are met before create the array on Azure.
 .DESCRIPTION
   This script will validate and verify the following: 
 	  - Check if the region where VNET is created is supported for CBS deployments. 
-	  - Check if the region has enough DSv3 Family vCPU to deploy Cloud Block Store.
+	  - Check if the region has enough Ebdsv5 or DSv3 Family vCPU to deploy Cloud Block Store.
 	  - Check if the Ultra Disks are available and in which Availability Zone. 
 	  - Check if the System Subnet has outbound internet Access.
       - Check if the Signed In User has the required Azure Role Assignment.
 .INPUTS
       - Azure Subscription Id.
-      - Cloud Block Store Model (V10 or V20).
+      - Pure Cloud Block Store Model (V20UR1, V10UR1, V20P2R2).
       - Azure Virtual Network, where CBS subnets are located. 
       - Azure Subnet, designated for CBS System subnet. 
 .OUTPUTS
@@ -23,6 +23,8 @@
         & paz-checklist.ps1
     Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first
         Connect-AzAccount
+.CHANGELOG
+    26/1/2024 2.0.1 Adding V20P2R2 and PremiumV2 SSD support to the script
 #>
 <#
 .DISCLAIMER
@@ -39,9 +41,9 @@ param (
     [string]
     $subscriptionId,
 
-    [Parameter(Mandatory = $true, HelpMessage = "cbsModel v10 or v20")]
+    [Parameter(Mandatory = $true, HelpMessage = "Enter CBS Model (V10U, V20U, V20P)")]
     [ValidateNotNullOrEmpty()]
-    [ValidatePattern('(v10|V10|v20|V20)')] 
+    [ValidatePattern('(V10U|V20U|V20P)')] 
     [string]
     $cbsModel,
 
@@ -56,11 +58,12 @@ param (
     $cbsSystemSubentName
 ) 
 
+
 # Select validated subscription 
 Select-AzSubscription -SubscriptionId $subscriptionId -WarningAction silentlyContinue | Out-Null
 
 # Assign a tmp test vm name
-$testVMName = "CBS_PreDeploy_Checklist_VM"
+$testVMName = "CBS_PreDeploy_Checklist_VM_Temp"
 
 
 # Resource_Group
@@ -90,54 +93,108 @@ Write-Output "# --------------------------------------------------"
 Write-Output "Checking if the region is supported to deploy Cloud Block Store" 
 Write-Output "." 
 Write-Output "." 
-Write-Output "." 
-$supportedRegions = "centralus", "eastus", "eastus2", "southcentralus", "westus", "westus2", "canadacentral", "northeurope", "westeurope", "uksouth", "francecentral", "germanywestcentral", "southeastasia", "japaneast", "australiaeast"   
-($region -in $supportedRegions) ? (Write-Host "$region region is supported" -ForegroundColor Green) : (Write-Host "!!!! $region region is NOT supported !!!!" -ForegroundColor Red)
+Write-Output "."
+if ($cbsModel -eq "V20P") {
+    $supportedRegions = "centralus", "eastus", "eastus2", "southcentralus", "westus3", "westus2", "canadacentral", "northeurope", "westeurope", "uksouth", "francecentral", "switzerlandnorth", "swedencentral", "southeastasia", "japaneast", "australiaeast", "koreacentral" , "brazilsouth", "uaenorth", "centralindia", "southafricanorth", "norwayeast", "eastasia"
+    ($region -in $supportedRegions) ? (Write-Host "$region region is supported" -ForegroundColor Green) : (Write-Host "!!!! $region region is NOT supported !!!!" -ForegroundColor Red)    
+} elseif ($cbsModel -eq "V20U" -or $cbsModel -eq "V10U"){ 
+    $supportedRegions = "centralus", "eastus", "eastus2", "southcentralus", "northcentralus", "westus3", 
+    "westus2", "westus", "northeurope", "westeurope", "uksouth", "francecentral", 
+    "switzerlandnorth", "swedencentral", "southeastasia", "germanywestcentral", "japaneast", "australiaeast", 
+    "koreacentral" , "brazilsouth", "uaenorth", "centralindia", "southafricanorth",  
+    "qatarcentral", "eastasia", "australiacentral", "koreasouth"
+    ($region -in $supportedRegions) ? (Write-Host "$region region is supported" -ForegroundColor Green) : (Write-Host "!!!! $region region is NOT supported !!!!" -ForegroundColor Red)  
+}
 
 
 ###################
 ## vCPU Limits ## 
 ###################
 Write-Output "# --------------------------------------------------"
-Write-Output "Checking if the region has enough DSv3 Family vCPU to deploy Cloud Block Store ... " 
+Write-Output "Checking if the region has enough vCPU to deploy Cloud Block Store ... " 
 Write-Output "." 
 Write-Output "." 
 Write-Output "." 
-$cbsVCPU = ($cbsModel -eq "v20") ? 64 : 32
-$currentLimit = az vm list-usage --location $region --query "[?name.localizedValue=='Standard DSv3 Family vCPUs'].currentValue" -o tsv
-$limit =  az vm list-usage --location $region --query "[?name.localizedValue=='Standard DSv3 Family vCPUs'].limit" -o tsv
-$vCPUAfterDeploy = $limit - ($cbsVCPU + $currentLimit)
-($cbsVCPU + $currentLimit) -le $limit ? (Write-Host "There is enough DSv3 vCPU for deploying $cbsModel" -ForegroundColor Green && Write-Host "Number of availible vCPU after deploying $cbsModel is:" -NoNewline && Write-Host "$vCPUAfterDeploy" -ForegroundColor Green ) : (Write-Host "!!!! NO enough DSv3 vCPU for deploying $cbsModel !!!!" -ForegroundColor Red) 
+$cbsVCPU = switch ($cbsModel) {
+    "V10U" { 32 }
+    "V20U" { 64 }
+    "V20P" { 32 }
+    Default { Write-Host "Invalid CBS Model selected."; exit }
+}
+
+if ($cbsModel -eq "V20P") {
+    $currentLimit = az vm list-usage --location $region --query "[?name.localizedValue=='Standard EBDSv5 Family vCPUs'].currentValue" -o tsv
+    $limit =  az vm list-usage --location $region --query "[?name.localizedValue=='Standard EBDSv5 Family vCPUs'].limit" -o tsv
+    Write-Host $limit, $currentLimit
+    $vCPUAfterDeploy = $limit - ($cbsVCPU + $currentLimit)
+    ($cbsVCPU + $currentLimit) -le $limit ? (Write-Host "There is enough Ebds_v5 vCPU for deploying $cbsModel" -ForegroundColor Green && Write-Host "Number of availible vCPU after deploying $cbsModel is:" -NoNewline && Write-Host "$vCPUAfterDeploy" -ForegroundColor Green ) : (Write-Host "!!!! NO enough Ebds_v5 vCPU for deploying $cbsModel !!!!" -ForegroundColor Red) 
+} elseif ($cbsModel -eq "V20U" -or $cbsModel -eq "V10U") {
+    $currentLimit = az vm list-usage --location $region --query "[?name.localizedValue=='Standard DSv3 Family vCPUs'].currentValue" -o tsv
+    $limit =  az vm list-usage --location $region --query "[?name.localizedValue=='Standard DSv3 Family vCPUs'].limit" -o tsv
+    $vCPUAfterDeploy = $limit - ($cbsVCPU + $currentLimit)
+    ($cbsVCPU + $currentLimit) -le $limit ? (Write-Host "There is enough Ds_v3 vCPU for deploying $cbsModel" -ForegroundColor Green && Write-Host "Number of availible vCPU after deploying $cbsModel is:" -NoNewline && Write-Host "$vCPUAfterDeploy" -ForegroundColor Green ) : (Write-Host "!!!! NO enough DSv3 vCPU for deploying $cbsModel !!!!" -ForegroundColor Red) 
+}
 
 
 
 
 
 ###################
-## Ultra Disk Availability ## 
+## Backend Azure Disk Availability ## 
 ###################
 Write-Output "." 
 Write-Output "." 
 Write-Output "."
 Write-Output "# --------------------------------------------------"
-Write-Host "Checking if the Ultra Managed Disks available ..." 
+Write-Host "Checking if the Backend Managed Disks available ..." 
 Write-Output "." 
 Write-Output "." 
 Write-Output "." 
-$vmSize = ($cbsModel -eq "v20") ? "Standard_D64s_v3" : "Standard_D32s_v3"
-$sku = (Get-AzComputeResourceSku | Where-Object {$_.Locations.Contains($region) -and ($_.Name -eq $vmSize) -and $_.LocationInfo[0].ZoneDetails.Count -gt 0})
-if ($sku) { 
-    $collections = $sku[0].LocationInfo[0].ZoneDetails.Name && Write-host "$vmSize is supported with Ultra Disk in $region region, and it is supported in: " -ForegroundColor Green
-} else { 
-    Write-host "!!!! Ultra Disk are NOT availible in $region region" -ForegroundColor Red
+$vmSize = switch ($cbsModel) {
+    "V10U" { "Standard_D32s_v3" }
+    "V20U" { "Standard_D64s_v3" }
+    "V20P" { "Standard_E32bds_v5" }
+    Default { Write-Host "Invalid CBS Model selected."; exit }
 }
-if($sku) {
-    Foreach ($item in $collections) { 
-        Write-Host "   - Availiblity Zone $item" -ForegroundColor Green
+if ($cbsModel -eq "V20P") {
+    $zones = Get-AzComputeResourceSku | Where-Object {
+        $_.ResourceType -eq "disks" -and 
+        $_.Name -eq "PremiumV2_LRS" -and 
+        $_.Location -eq $region
+    } | Select-Object -ExpandProperty LocationInfo | Select-Object -ExpandProperty Zones
+
+    if ($zones) { 
+        Write-host "$vmSize is supported with PremiumV2 Disk in $region region, and it is supported in: " -ForegroundColor Green
+    } else { 
+        Write-host "!!!! PremiumV2 Disk are NOT availible in $region region" -ForegroundColor Red
     }
-} 
+    if($sku) {
+        foreach ($zoneCollection in $zones) {
+            foreach ($zone in $zoneCollection) {
+            Write-Host "   - Availiblity Zone $zone" -ForegroundColor Green
+            }
+        }       
+    } 
+} elseif ($cbsModel -eq "V20U" -or $cbsModel -eq "V10U") {
+    $zones = Get-AzComputeResourceSku | Where-Object {
+        $_.ResourceType -eq "disks" -and 
+        $_.Name -eq "UltraSSD_LRS" -and 
+        $_.Location -eq $region
+    } | Select-Object -ExpandProperty LocationInfo | Select-Object -ExpandProperty Zones
 
-
+    if ($zones) { 
+        Write-host "$vmSize is supported with Ultra Disk in $region region, and it is supported in: " -ForegroundColor Green
+    } else { 
+        Write-host "!!!! Ultra Disk are NOT availible in $region region" -ForegroundColor Red
+    }
+    if($sku) {
+        foreach ($zoneCollection in $zones) {
+            foreach ($zone in $zoneCollection) {
+            Write-Host "   - Availiblity Zone $zone" -ForegroundColor Green
+            }
+        }       
+    }
+}
 
 ####################
 ## Service Endpoint ## 
@@ -148,8 +205,6 @@ Write-Output "."
 Write-Output "." 
 Write-Output "." 
 $ServiceEndpoints = (Get-AzVirtualNetworkSubnetConfig -Name $cbsSystemSubentName -VirtualNetwork $PSvnet).ServiceEndpoints
-# ($ServiceEndpoints.Service -eq "Microsoft.AzureCosmosDB") ? "AzureCosmosDB Service Endpoint is attached" : "!!!! No AzureCosmosDB Service Endpoint attaeched to System Subnet"
-# ($ServiceEndpoints.Service -eq "Microsoft.KeyVault") ? "KeyVault Service Endpoint is attached" : "!!!! No KeyVault Service Endpoint attaeched to System Subnet"
 if ($ServiceEndpoints.Service -eq "Microsoft.AzureCosmosDB") {
     Write-Host "AzureCosmosDB Service Endpoint is attached" -ForegroundColor Green
 } else {
@@ -174,7 +229,6 @@ Write-Output "."
 $currentSignInName = (Get-AzContext).Account.Id
 $listOfAssignedRoles = Get-AzRoleAssignment -Scope /subscriptions/$subscriptionId | Where-Object -Property SignInName -EQ $currentSignInName
 $collections = $listOfAssignedRoles.RoleDefinitionName 
-# if($listOfAssignedRoles) {Foreach ($item in $collections) { Write-Output "$item"}}
 if($listOfAssignedRoles) {
     if ($collections -like "Contributor" -or $collections -like "Owner" -or $collections -like "Managed Application Contributor Role") {
         Write-Host "--> You have at least one of the required role assignment: $collections" -ForegroundColor Green
@@ -253,7 +307,6 @@ $endpointsToTest = "rest.cloud-support.purestorage.com", "ra.cloud-support.pures
 
 foreach ($endpoint in $endpointsToTest) {
     $TestConnectionStatus = (Test-AzNetworkWatcherConnectivity -NetworkWatcher $networkWatcher -SourceId $VM1.id -DestinationAddress $endpoint -DestinationPort 443).ConnectionStatus
-    # ($TestConnectionStatus -eq "Reachable") ? "--> Endpoint: $endpoint == $TestConnectionStatus" : "!!!! VM can NOT connect to $endpoint, Check you outbount internet configuration !!!!" 
     if ($TestConnectionStatus -eq "Reachable") {
         Write-Host "--> Endpoint: $endpoint ==" -NoNewline
         Write-Host " $TestConnectionStatus" -ForegroundColor Green
@@ -307,3 +360,4 @@ if ($decision -eq 0) {
 } else {
     Write-Host "Your choice is No. $testVMName will not be deleted" -ForegroundColor Red
 }
+

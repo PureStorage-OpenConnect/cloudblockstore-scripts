@@ -1,6 +1,6 @@
 # Collect AWS Elastic Block Store Disk information using AWS PowerShell SDK
 
-Follow the below step to collect Azure VM data disk information.
+Follow the below step to collect AWS EC2 VM data disk information.
 
 1. Install AWS Tools for Powershell - <https://docs.aws.amazon.com/powershell/latest/userguide/pstools-getting-set-up-windows.html>
     * Install-Module -Name AWS.Tools.Installer

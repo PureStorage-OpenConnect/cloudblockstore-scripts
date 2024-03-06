@@ -2,7 +2,7 @@ param (
     [Object]$RecoveryPlanContext,
     [Boolean]$TestExecution
 )
-Write-Verbose "Conencting to Azure..."
+Write-Verbose "Connecting to Azure..."
 # Ensures you do not inherit an AzContext in your runbook
 Disable-AzContextAutosave -Scope Process
 

@@ -1,7 +1,7 @@
 <#
   paz-checklist.ps1 - 
-  Version:        2.0.0
-  Author:         Adam Mazouz @ Pure Storage
+  Version:        3.0.0
+  Author:         Vaclav Jirovsky, Adam Mazouz @ Pure Storage
 .SYNOPSIS
     Checking if the prerequisites required for deploying Cloud Block Store are met before create the array on Azure.
 .DESCRIPTION
@@ -13,18 +13,20 @@
       - Check if the Signed In User has the required Azure Role Assignment.
 .INPUTS
       - Azure Subscription Id.
-      - Pure Cloud Block Store Model (V20UR1, V10UR1, V20P2R2).
+      - Pure Cloud Block Store Model (V20MUR1, V10MUR1, V20MP2R2).
       - Azure Virtual Network, where CBS subnets are located. 
       - Azure Subnet, designated for CBS System subnet. 
+      - (optional) Tags to be assigned for a temporary VM created for connectivity test
 .OUTPUTS
     Print out the on console the validation results. 
 .EXAMPLE
-    Option 1: Use Azure CloudShell to paste the script and run it
+    Option 1: Use Azure Cloud Shell to paste the script and run it
         & paz-checklist.ps1
     Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first
         Connect-AzAccount
 .CHANGELOG
-    26/1/2024 2.0.1 Adding V20P2R2 and PremiumV2 SSD support to the script
+    3/12/2024 3.0.0 Script refactored, to provide a full report of the readiness of the environment for CBS deployment
+    26/1/2024 2.0.1 Adding V20MP2R2 and PremiumV2 SSD support to the script
 #>
 <#
 .DISCLAIMER
@@ -41,323 +43,451 @@ param (
     [string]
     $subscriptionId,
 
-    [Parameter(Mandatory = $true, HelpMessage = "Enter CBS Model (V10U, V20U, V20P)")]
+    [Parameter(Mandatory = $true, HelpMessage = "Enter CBS Model (V10MUR1, V20MUR1, V20MP2R2)")]
     [ValidateNotNullOrEmpty()]
-    [ValidatePattern('(V10U|V20U|V20P)')] 
+    [ValidateSet("V10MUR1", "V20MUR1", "V20MP2R2")] 
     [string]
     $cbsModel,
 
-    [Parameter(Mandatory = $true, HelpMessage = "Enter your Virtual Network name")]
+    [Parameter(Mandatory = $true, HelpMessage = "Enter your vNET name")]
     [ValidateNotNullOrEmpty()]
     [string]
     $cbsVNETName,
 
-    [Parameter(Mandatory = $true, HelpMessage = "Enter your System Subnet name")]
+    [Parameter(Mandatory = $false, HelpMessage = "Enter your subnet name within vNET used for 'system'")]
     [ValidateNotNullOrEmpty()]
     [string]
-    $cbsSystemSubentName
+    $vnetSystemSubnetName = "system",
+
+    [Parameter(Mandatory = $false, HelpMessage = "Enter name for temporary VM created for connectivity tests")]
+    [ValidateNotNullOrEmpty()]
+    [string]
+    $tempVmName = "CBS_PreDeploy_Checklist_VM_Temp",
+
+    [Parameter(Mandatory = $false, HelpMessage = "List of tags to be assigned to the temporary VM created for connectivity tests, required by your Azure landing zone (e.g. @{'tag1'='value1';'tag2'='value2'})")]
+    [hashtable]
+    $tempVmTags = @{}
 ) 
 
+$finalReportOutput = @()
 
-# Select validated subscription 
-Select-AzSubscription -SubscriptionId $subscriptionId -WarningAction silentlyContinue | Out-Null
-
-# Assign a tmp test vm name
-$testVMName = "CBS_PreDeploy_Checklist_VM_Temp"
-
-
-# Resource_Group
-$rg = (Get-AzVirtualNetwork -Name $cbsVNETName).ResourceGroupName
-if ($null -eq $rg) {
-    Write-Host "Caution: No virtual network found by the name '$cbsVNETName'."
+if ($cbsModel -eq "V20MP2R2") {
+    $supportedRegions = 
+    "centralus", "eastus", "eastus2", 
+    "southcentralus", "westus3", "westus2", 
+    "canadacentral", "northeurope", "westeurope", 
+    "uksouth", "francecentral", "switzerlandnorth", 
+    "swedencentral", "southeastasia", "japaneast", 
+    "australiaeast", "koreacentral" , "brazilsouth", 
+    "uaenorth", "centralindia", "southafricanorth",
+    "norwayeast", "eastasia", "israelcentral"
+}
+elseif ($cbsModel -eq "V10MUR1" -or $cbsModel -eq "V20MUR1") { 
+    $supportedRegions = 
+    "centralus", "eastus", "eastus2", 
+    "southcentralus", "northcentralus", "westus3", 
+    "westus2", "westus", "northeurope", 
+    "westeurope", "uksouth", "francecentral", 
+    "switzerlandnorth", "swedencentral", "southeastasia", 
+    "germanywestcentral", "japaneast", "australiaeast", 
+    "koreacentral" , "brazilsouth", "uaenorth", 
+    "centralindia", "southafricanorth", "qatarcentral", 
+    "eastasia", "australiacentral", "koreasouth"
+}
+else {
+    Write-Error "Unknown CBS Model selected. Please select one of the following: V10MUR1, V20MUR1, V20MP2R2";
     Exit
 }
 
-$PSvnet = Get-AzVirtualNetwork -Name $cbsVNETName
-$PSSubnet = Get-AzVirtualNetworkSubnetConfig -Name $cbsSystemSubentName -VirtualNetwork $PSvnet
-if ($null -eq $PSSubnet) {
-    Write-Host "Caution: No subnet found by the name '$cbsSystemSubentName'"
-    Exit
-}
+$CLI_VERSION = "3.0.0"
 
-# REGION
-$region = (Get-AzVirtualNetwork -Name  $cbsVNETName).Location
-
-###################
-## Region Supported ## 
-###################
-Write-Output "." 
-Write-Output "." 
-Write-Output "."
-Write-Output "# --------------------------------------------------"
-Write-Output "Checking if the region is supported to deploy Cloud Block Store" 
-Write-Output "." 
-Write-Output "." 
-Write-Output "."
-if ($cbsModel -eq "V20P") {
-    $supportedRegions = "centralus", "eastus", "eastus2", "southcentralus", "westus3", "westus2", "canadacentral", "northeurope", "westeurope", "uksouth", "francecentral", "switzerlandnorth", "swedencentral", "southeastasia", "japaneast", "australiaeast", "koreacentral" , "brazilsouth", "uaenorth", "centralindia", "southafricanorth", "norwayeast", "eastasia"
-    ($region -in $supportedRegions) ? (Write-Host "$region region is supported" -ForegroundColor Green) : (Write-Host "!!!! $region region is NOT supported !!!!" -ForegroundColor Red)    
-} elseif ($cbsModel -eq "V20U" -or $cbsModel -eq "V10U"){ 
-    $supportedRegions = "centralus", "eastus", "eastus2", "southcentralus", "northcentralus", "westus3", 
-    "westus2", "westus", "northeurope", "westeurope", "uksouth", "francecentral", 
-    "switzerlandnorth", "swedencentral", "southeastasia", "germanywestcentral", "japaneast", "australiaeast", 
-    "koreacentral" , "brazilsouth", "uaenorth", "centralindia", "southafricanorth",  
-    "qatarcentral", "eastasia", "australiacentral", "koreasouth"
-    ($region -in $supportedRegions) ? (Write-Host "$region region is supported" -ForegroundColor Green) : (Write-Host "!!!! $region region is NOT supported !!!!" -ForegroundColor Red)  
-}
+Write-Host -ForegroundColor DarkRed -BackgroundColor Black @"
+ _____                   _____ _                              
+|  __ \                 / ____| |                             
+| |__) |   _ _ __ ___  | (___ | |_ ___  _ __ __ _  __ _  ___  
+|  ___/ | | | '__/ _ \  \___ \| __/ _ \| '__/ _`  |/ _`  |/ _ \ 
+| |   | |_| | | |  __/  ____) | || (_) | | | (_| | (_| |  __/ 
+|_|    \__,_|_|  \___| |_____/ \__\___/|_|  \__,_|\__, |\___| 
+                                                   __/ /     
 
 
-###################
-## vCPU Limits ## 
-###################
-Write-Output "# --------------------------------------------------"
-Write-Output "Checking if the region has enough vCPU to deploy Cloud Block Store ... " 
-Write-Output "." 
-Write-Output "." 
-Write-Output "." 
-$cbsVCPU = switch ($cbsModel) {
-    "V10U" { 32 }
-    "V20U" { 64 }
-    "V20P" { 32 }
-    Default { Write-Host "Invalid CBS Model selected."; exit }
-}
+"@
 
-if ($cbsModel -eq "V20P") {
-    $currentLimit = az vm list-usage --location $region --query "[?name.localizedValue=='Standard EBDSv5 Family vCPUs'].currentValue" -o tsv
-    $limit =  az vm list-usage --location $region --query "[?name.localizedValue=='Standard EBDSv5 Family vCPUs'].limit" -o tsv
-    Write-Host $limit, $currentLimit
-    $vCPUAfterDeploy = $limit - ($cbsVCPU + $currentLimit)
-    ($cbsVCPU + $currentLimit) -le $limit ? (Write-Host "There is enough Ebds_v5 vCPU for deploying $cbsModel" -ForegroundColor Green && Write-Host "Number of availible vCPU after deploying $cbsModel is:" -NoNewline && Write-Host "$vCPUAfterDeploy" -ForegroundColor Green ) : (Write-Host "!!!! NO enough Ebds_v5 vCPU for deploying $cbsModel !!!!" -ForegroundColor Red) 
-} elseif ($cbsModel -eq "V20U" -or $cbsModel -eq "V10U") {
-    $currentLimit = az vm list-usage --location $region --query "[?name.localizedValue=='Standard DSv3 Family vCPUs'].currentValue" -o tsv
-    $limit =  az vm list-usage --location $region --query "[?name.localizedValue=='Standard DSv3 Family vCPUs'].limit" -o tsv
-    $vCPUAfterDeploy = $limit - ($cbsVCPU + $currentLimit)
-    ($cbsVCPU + $currentLimit) -le $limit ? (Write-Host "There is enough Ds_v3 vCPU for deploying $cbsModel" -ForegroundColor Green && Write-Host "Number of availible vCPU after deploying $cbsModel is:" -NoNewline && Write-Host "$vCPUAfterDeploy" -ForegroundColor Green ) : (Write-Host "!!!! NO enough DSv3 vCPU for deploying $cbsModel !!!!" -ForegroundColor Red) 
-}
-
-
-
-
-
-###################
-## Backend Azure Disk Availability ## 
-###################
-Write-Output "." 
-Write-Output "." 
-Write-Output "."
-Write-Output "# --------------------------------------------------"
-Write-Host "Checking if the Backend Managed Disks available ..." 
-Write-Output "." 
-Write-Output "." 
-Write-Output "." 
-$vmSize = switch ($cbsModel) {
-    "V10U" { "Standard_D32s_v3" }
-    "V20U" { "Standard_D64s_v3" }
-    "V20P" { "Standard_E32bds_v5" }
-    Default { Write-Host "Invalid CBS Model selected."; exit }
-}
-if ($cbsModel -eq "V20P") {
-    $zones = Get-AzComputeResourceSku | Where-Object {
-        $_.ResourceType -eq "disks" -and 
-        $_.Name -eq "PremiumV2_LRS" -and 
-        $_.Location -eq $region
-    } | Select-Object -ExpandProperty LocationInfo | Select-Object -ExpandProperty Zones
-
-    if ($zones) { 
-        Write-host "$vmSize is supported with PremiumV2 Disk in $region region, and it is supported in: " -ForegroundColor Green
-    } else { 
-        Write-host "!!!! PremiumV2 Disk are NOT availible in $region region" -ForegroundColor Red
-    }
-    if($sku) {
-        foreach ($zoneCollection in $zones) {
-            foreach ($zone in $zoneCollection) {
-            Write-Host "   - Availiblity Zone $zone" -ForegroundColor Green
-            }
-        }       
-    } 
-} elseif ($cbsModel -eq "V20U" -or $cbsModel -eq "V10U") {
-    $zones = Get-AzComputeResourceSku | Where-Object {
-        $_.ResourceType -eq "disks" -and 
-        $_.Name -eq "UltraSSD_LRS" -and 
-        $_.Location -eq $region
-    } | Select-Object -ExpandProperty LocationInfo | Select-Object -ExpandProperty Zones
-
-    if ($zones) { 
-        Write-host "$vmSize is supported with Ultra Disk in $region region, and it is supported in: " -ForegroundColor Green
-    } else { 
-        Write-host "!!!! Ultra Disk are NOT availible in $region region" -ForegroundColor Red
-    }
-    if($sku) {
-        foreach ($zoneCollection in $zones) {
-            foreach ($zone in $zoneCollection) {
-            Write-Host "   - Availiblity Zone $zone" -ForegroundColor Green
-            }
-        }       
-    }
-}
-
-####################
-## Service Endpoint ## 
-####################
-Write-Output "# --------------------------------------------------"
-Write-Output "Checking if the System Subnet has Service Endpoint attached ..." 
-Write-Output "." 
-Write-Output "." 
-Write-Output "." 
-$ServiceEndpoints = (Get-AzVirtualNetworkSubnetConfig -Name $cbsSystemSubentName -VirtualNetwork $PSvnet).ServiceEndpoints
-if ($ServiceEndpoints.Service -eq "Microsoft.AzureCosmosDB") {
-    Write-Host "AzureCosmosDB Service Endpoint is attached" -ForegroundColor Green
-} else {
-    Write-Host "!!!! No AzureCosmosDB Service Endpoint attaeched to System Subnet" -ForegroundColor Red
-}
-if ($ServiceEndpoints.Service -eq "Microsoft.KeyVault") {
-    Write-Host "KeyVault Service Endpoint is attached" -ForegroundColor Green
-} else {
-    Write-Host "!!!! No KeyVault Service Endpoint attaeched to System Subnet" -ForegroundColor Red
-} 
-
-
-
-####################
-## Azure IAM Roles ## 
-####################
-Write-Output "# --------------------------------------------------"
-Write-Output "Checking if the SignInUser has the required Azure Role Assignment for the selected subscription ..." 
-Write-Output "." 
-Write-Output "." 
-Write-Output "." 
-$currentSignInName = (Get-AzContext).Account.Id
-$listOfAssignedRoles = Get-AzRoleAssignment -Scope /subscriptions/$subscriptionId | Where-Object -Property SignInName -EQ $currentSignInName
-$collections = $listOfAssignedRoles.RoleDefinitionName 
-if($listOfAssignedRoles) {
-    if ($collections -like "Contributor" -or $collections -like "Owner" -or $collections -like "Managed Application Contributor Role") {
-        Write-Host "--> You have at least one of the required role assignment: $collections" -ForegroundColor Green
-    } else { 
-        Write-Host "!!! You DO NOT have the required role assignment to deploy CBS !!!!" -ForegroundColor Red
-    }
-}
-
-
-####################
-## Test Conncetivity ## 
-####################
-Write-Output "# --------------------------------------------------"
-Write-Output "Checking if the System Subnet has outbound internet Access..." 
-Write-Output "Creating the test VM in the System Subnet..." 
-Write-Output "." 
-Write-Output "." 
-Write-Output "." 
-# 1/ Create Test_VM in System Subnet
-####################
-## Define a credential object to store the username and password for the virtual machine
-$UserName = "azureuser"
-$Password = ConvertTo-SecureString "Passw0rd" -AsPlainText -Force
-$psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
-
-## Create a virtual network card and associate it with the public IP address
-# $SecurityGroupRule = New-AzNetworkSecurityRuleConfig -Name "HTTPS-Rule" -Description "Allow HTTPS" -Access "Allow" -Protocol "TCP" -Direction "Outbound" -Priority 100 -DestinationPortRange 443 -SourceAddressPrefix "*" -SourcePortRange "*" -DestinationAddressPrefix "*" 
-## Create a network security group
-
-# $NetworkSG = New-AzNetworkSecurityGroup -ResourceGroupName $rg -Location $region -Name Test_VM_NSG -SecurityRules $SecurityGroupRule
-$NetworkSG = New-AzNetworkSecurityGroup -ResourceGroupName $rg -Location $region -Name "$testVMName-NSG" 
-$NIC = New-AzNetworkInterface -Name "$testVMName-NIC" -ResourceGroupName $rg -Location $region -Subnet $PSSubnet -NetworkSecurityGroup $NetworkSG 
-
-## Create a virtual network card and associate it with the public IP address without NSG
-# $NIC = New-AzNetworkInterface -Name Test_VM_NIC -ResourceGroupName $rg -Location $region -Subnet $PSSubnet
-
-
-## Set the VM Size and Type
-$VirtualMachine = New-AzVMConfig -VMName $testVMName -VMSize Standard_B1s 
-$VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Linux -ComputerName testvm -Credential $psCred 
-$VirtualMachine = Add-AzVMNetworkInterface -VM $VirtualMachine -Id $NIC.Id
+Write-Host  @"
+------------------------------------------------------------
+    Pure Cloud Block Store - Pre-Deployment Check Report 
+                (c) 2023 Pure Storage
+                        v$CLI_VERSION
+------------------------------------------------------------
+"@
 
 try {
-    ## Set the VM Source Image
-$VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName 'Canonical' -Offer 'UbuntuServer' -Skus '18_04-lts-gen2' -Version "latest"
-# New-AzVM -ResourceGroupName $rg -Location $region -VM $VirtualMachine -GenerateSshKey -SshKeyName TestVMSSHKey -WarningAction silentlyContinue | Out-Null
-New-AzVM -ResourceGroupName $rg -Location $region -VM $VirtualMachine -WarningAction silentlyContinue | Out-Null
-Set-AzVMExtension -ResourceGroupName $rg -Location $region -VMName $testVMName -Name "NetworkWatcherAgentLinux" -ExtensionType "NetworkWatcherAgentLinux" -Publisher "Microsoft.Azure.NetworkWatcher" -TypeHandlerVersion "1.4" | Out-Null
-# 2/ Wait for the VM to be created
-####################
-$VMStatus = (Get-AzVM -Name $testVMName -ResourceGroupName $rg -Status).Statuses[1].DisplayStatus
-while ($VMStatus -ne "VM running" ) {
-    Write-Output "VM is still being created"
-    Start-Sleep -Seconds 10
-}
- }
-catch {
-  Write-Host "An error occurred:"
-  Write-Host $_
-}
 
 
-Write-Output "# --------------------------------------------------"
-Write-Output "VM is created, Next is testing the VM connectivity to Pure1 and Azure Endpoints" 
-Write-Output "." 
-Write-Output "." 
-Write-Output "." 
+    # Select validated subscription 
+    Select-AzSubscription -SubscriptionId $subscriptionId -WarningAction silentlyContinue | Out-Null
 
-# 3/ Run Command against the Test_VM
-####################
-
-$VM1 = Get-AzVM -ResourceGroupName $rg | Where-Object -Property Name -EQ $testVMName
-$networkWatcher = Get-AzNetworkWatcher | Where-Object -Property Location -EQ -Value $VM1.Location 
-
-$endpointsToTest = "rest.cloud-support.purestorage.com", "ra.cloud-support.purestorage.com", "restricted-rest.cloud-support.purestorage.com","management.azure.com","cosmos.azure.com"
-
-foreach ($endpoint in $endpointsToTest) {
-    $TestConnectionStatus = (Test-AzNetworkWatcherConnectivity -NetworkWatcher $networkWatcher -SourceId $VM1.id -DestinationAddress $endpoint -DestinationPort 443).ConnectionStatus
-    if ($TestConnectionStatus -eq "Reachable") {
-        Write-Host "--> Endpoint: $endpoint ==" -NoNewline
-        Write-Host " $TestConnectionStatus" -ForegroundColor Green
-    } else {
-        Write-Host "--> Endpoint: $endpoint ==" -NoNewline
-        Write-Host " $TestConnectionStatus" -ForegroundColor Red
-        Write-Host "!!!! VM can NOT connect to $endpoint, Check you outbount internet configuration !!!!" -ForegroundColor Red
-    }  
-
-}
-##
-#TODO: Make the commented block below faster.
-##
-# # Define the range of Pure1 IP addresses to test
-# $endIpAddress = 253
-# Write-Host "Connectivity Test for Pure1 Endpoint IP Range 52.40.255.224/27:"
-# # Loop through the IP range and perform connectivity tests
-# for ($i = 224; $i -le $endIpAddress; $i++) {
-#     $IpAddress = "52.40.255.$i"
-#     $ipAddress = $IpAddress.ToString()
-
-#     # Start the connectivity test
-#     $result = (Test-AzNetworkWatcherConnectivity -NetworkWatcher $networkWatcher  -SourceId $VM1.id -DestinationAddress $ipAddress -DestinationPort 443).ConnectionStatus
-
-#     # Display the test results
-#     Write-Host "--> Pure1 IP Address: $ipAddress == $result"
+    $PSStyle.Progress.View = 'Classic'
     
-# }
-Write-Output "#---------------------------------------------"
+    $endpointsToTest = 
+    "rest.cloud-support.purestorage.com", 
+    "ra.cloud-support.purestorage.com", 
+    "restricted-rest.cloud-support.purestorage.com", 
+    "restricted-ra.cloud-support.purestorage.com", 
+    "rest.cloud-support.purestorage.com", 
+    "rest2.cloud-support.purestorage.com", 
+    "management.azure.com",
+    "cosmos.azure.com"
+    
 
 
-# 4/ Delete the temp Test_VM
-Write-Output "Deleting the temporary created VM..."  
-Write-Output "." 
-Write-Output "." 
-Write-Output "." 
-$title    = 'Confirm Deleteing of the Test VM, In case no more connectivity troubleshooting is required'
-$question = 'Do you want to continue?'
-$choices  = '&Yes', '&No'
 
+    # Resource_Group
+    Write-Progress "Checking vNET presence" -PercentComplete 0
 
-$decision = $Host.UI.PromptForChoice($title, $question, $choices, 1)
-if ($decision -eq 0) {
-    $vm = Get-AzVm -Name $testVMName -ResourceGroupName $rg
+    $rg = (Get-AzVirtualNetwork -Name $cbsVNETName).ResourceGroupName
+    if ($null -eq $rg) {
+        $finalReportOutput += [pscustomobject]@{
+            TestName = "vNET existence"
+            Result   = "FAILED"
+            Details  = "vNET '$cbsVNETName' WAS NOT found"
+        };
+
+        Exit
+    }
+    Write-Progress "Checking vNET presence" -PercentComplete 100
+
+    $finalReportOutput += [pscustomobject]@{
+        TestName = "vNET existence"
+        Result   = "OK"
+        Details  = "vNET '$cbsVNETName' was found in RG '$rg'"
+    };
+
+    Write-Progress "Checking subnet presence" -PercentComplete 0
+
+    $PSvnet = Get-AzVirtualNetwork -Name $cbsVNETName
+    $PSSubnet = Get-AzVirtualNetworkSubnetConfig -Name $vnetSystemSubnetName -VirtualNetwork $PSvnet
+    if ($null -eq $PSSubnet) {
+        $finalReportOutput += [pscustomobject]@{
+            TestName = "Subnet existence"
+            Result   = "FAILED"
+            Details  = "Subnet '$vnetSystemSubnetName' WAS NOT found"
+        };
+        Exit
+    }
+
+    $finalReportOutput += [pscustomobject]@{
+        TestName = "Subnet existence"
+        Result   = "OK"
+        Details  = "Subnet '$vnetSystemSubnetName' was found"
+    };
+
+    Write-Progress "Checking subnet presence" -PercentComplete 100
+    
+    Write-Progress "Checking region support" -PercentComplete 0
+    # REGION
+    $region = (Get-AzVirtualNetwork -Name  $cbsVNETName).Location
+
+    ###################
+    ## Region Supported ## 
+    ###################
+    if ($region -in $supportedRegions) {
+        $finalReportOutput += [pscustomobject]@{
+            TestName = "Region support"
+            Result   = "OK"
+            Details  = "Region '$region' is declared as supported for deploying a $cbsModel"
+        };
+    }
+    else {
+        $finalReportOutput += [pscustomobject]@{
+            TestName = "Region support"
+            Result   = "FAILED"
+            Details  = "Region '$region' IS declared as NOT supported for deploying a $cbsModel"
+        };
+    }
+
+    Write-Progress "Checking region support" -PercentComplete 100
+    
+    
+    Write-Progress "Checking vCPU limits" -PercentComplete 0
+
+    ###################
+    ## vCPU Limits ## 
+    ###################
+    
+    $cbsVCPU = switch ($cbsModel) {
+        "V10MUR1" { 32 }
+        "V20MUR1" { 64 }
+        "V20MP2R2" { 32 }
+        Default { Write-Host "Invalid CBS Model selected."; exit }
+    }
+
+    $vmSize = switch ($cbsModel) {
+        "V10MUR1" { "Standard_D32s_v3" }
+        "V20MUR1" { "Standard_D64s_v3" }
+        "V20MP2R2" { "Standard_E32bds_v5" }
+        Default { Write-Host "Invalid CBS Model selected."; exit }
+    }
+
+    $diskType = switch ($cbsModel) {
+        "V10MUR1" { "UltraSSD_LRS" }
+        "V20MUR1" { "UltraSSD_LRS" }
+        "V20MP2R2" { "PremiumV2_LRS" }
+        Default { Write-Host "Invalid CBS Model selected."; exit }
+    }
+
+    $VMFamily = (Get-AzComputeResourceSku -Location $region | Where-Object ResourceType -eq "virtualMachines" | Select-Object Name, Family | Where-Object Name -eq $vmSize | Select-Object -Property Family).Family
+        
+    $currentLimit = Get-AzVMUsage -Location $region | Where-Object { $_.Name.Value -eq $VMFamily } | Select-Object -ExpandProperty CurrentValue
+    Write-Progress "Checking vCPU limits" -PercentComplete 50
+    $limit = Get-AzVMUsage -Location $region | Where-Object { $_.Name.Value -eq $VMFamily } | Select-Object -ExpandProperty Limit
+    
+    $vCPUAfterDeploy = $limit - ($cbsVCPU + $currentLimit)
+    if (($cbsVCPU + $currentLimit) -le $limit) {
+        $finalReportOutput += [pscustomobject]@{
+            TestName = "vCPUs availability (quota)"
+            Result   = "OK"
+            Details  = "There is enough $vmSize vCPUs for deploying a $cbsModel ($vCPUAfterDeploy after deployment, currently used $currentLimit, total limit $limit)"
+        };
+    }
+    else {    
+        $finalReportOutput += [pscustomobject]@{
+            TestName = "vCPUs availability (quota)"
+            Result   = "FAILED"
+            Details  = "There IS NOT enough $vmSize vCPUs for deploying a $cbsModel ($vCPUAfterDeploy after deployment, currently used $currentLimit, total limit $limit)"
+        };
+            
+        exit;
+    }
+    Write-Progress "Checking vCPU limits" -PercentComplete 100
+
+    ###################
+    ## Backend Azure Disk Availability ## 
+    ###################
+   
+    Write-Progress "Checking Managed Disk availability" -PercentComplete 0
+    $zones = Get-AzComputeResourceSku | Where-Object {
+        $_.ResourceType -eq "disks" -and $_.Name -eq $diskType -and $_.Locations -eq $region
+    } | Select-Object -ExpandProperty LocationInfo | Select-Object -ExpandProperty Zones
+
+    if ($zones) { 
+        
+        $finalReportOutput += [pscustomobject]@{
+            TestName = "Managed Disks availability"
+            Result   = "OK"
+            Details  = "The disk SKU '$diskType' is available in region '$region' in availability zones '$zones' for deploying a $cbsModel"
+        };
+    }
+    else { 
+        
+        $finalReportOutput += [pscustomobject]@{
+            TestName = "Managed Disks availability"
+            Result   = "FAILED"
+            Details  = "The disk SKU '$diskType' is NOT available in region '$region' for deploying a $cbsModel"
+        };
+    }
+
+    Write-Progress "Checking Managed Disk availability" -PercentComplete 100
+    
+    ####################
+    ## Service Endpoint ## 
+    ####################
+    
+    Write-Progress "Checking Service Endpoints" -PercentComplete 0
+
+    $ServiceEndpoints = (Get-AzVirtualNetworkSubnetConfig -Name $vnetSystemSubnetName -VirtualNetwork $PSvnet).ServiceEndpoints
+    if ($ServiceEndpoints.Service -eq "Microsoft.AzureCosmosDB") {
+
+        $finalReportOutput += [pscustomobject]@{
+            TestName = "Azure CosmosDB Service Endpoint"
+            Result   = "OK"
+            Details  = "The service endpoint for CosmosDB is attached to the System Subnet '$vnetSystemSubnetName'"
+        };
+    }
+    else {
+        $finalReportOutput += [pscustomobject]@{
+            TestName = "Azure CosmosDB Service Endpoint"
+            Result   = "FAILED"
+            Details  = "The service endpoint for CosmosDB is NOT attached to the System Subnet '$vnetSystemSubnetName'"
+        };
+    }
+
+    Write-Progress "Checking Service Endpoints" -PercentComplete 50
+
+    if ($ServiceEndpoints.Service -eq "Microsoft.KeyVault") {
+        
+        $finalReportOutput += [pscustomobject]@{
+            TestName = "Azure Key Vault Service Endpoint"
+            Result   = "OK"
+            Details  = "The service endpoint for KeyVault is attached to the System Subnet '$vnetSystemSubnetName'"
+        };
+    }
+    else {
+        
+        $finalReportOutput += [pscustomobject]@{
+            TestName = "Azure KeyVault Service Endpoint"
+            Result   = "FAILED"
+            Details  = "The service endpoint for KeyVault is NOT attached to the System Subnet '$vnetSystemSubnetName'"
+        };
+    } 
+
+    Write-Progress "Checking Service Endpoints" -PercentComplete 100
+
+    ####################
+    ## Azure IAM Roles ## 
+    ####################
+    Write-Progress "Checking IAM Role" -PercentComplete 0
+    $currentSignInName = (Get-AzContext).Account.Id
+    $listOfAssignedRoles = Get-AzRoleAssignment -Scope /subscriptions/$subscriptionId | Where-Object -Property SignInName -EQ $currentSignInName
+    $collections = $listOfAssignedRoles.RoleDefinitionName 
+    if ($listOfAssignedRoles) {
+        if ($collections -like "Contributor" -or $collections -like "Owner" -or $collections -like "Managed Application Contributor Role") {
+            $finalReportOutput += [pscustomobject]@{
+                TestName = "Azure IAM Role"
+                Result   = "OK"
+                Details  = "Signed user has at least one of the required role assigned to the subscription"
+            };
+        }
+        else { 
+            $finalReportOutput += [pscustomobject]@{
+                TestName = "Azure IAM Role"
+                Result   = "FAILED"
+                Details  = "Signed user DOESN'T have any of the required role (Managed Application Contributor/Contributor/Owner) assigned to the subscription"
+            };
+        }
+    }
+
+    Write-Progress "Checking IAM Role" -PercentComplete 100
+
+    ####################
+    ## Connectivity Test ## 
+    ####################
+    
+    # 1/ Create Test_VM in System Subnet
+    ####################
+    Write-Progress "Creating a temporary test VM in System subnet" -PercentComplete 0
+    $region = (Get-AzVirtualNetwork -Name  $cbsVNETName).Location
+    ## Define a credential object to store the username and password for the virtual machine
+    $UserName = "azureuser"
+    $Password = ConvertTo-SecureString ( -Join ("ABCDabcd&@#$%1234".tochararray() | Get-Random -Count 10 | % { [char]$_ })) -AsPlainText -Force
+    $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
+
+    $NetworkSG = New-AzNetworkSecurityGroup -ResourceGroupName $rg -Location $region -Name "$tempVMName-NSG" -Force
+    $NIC = New-AzNetworkInterface -Name "$tempVMName-NIC" -ResourceGroupName $rg -Location $region -Subnet $PSSubnet -NetworkSecurityGroup $NetworkSG -Force 
+
+    Write-Progress "Creating a temporary test VM in System subnet" -PercentComplete 50
+    ## Set the VM Size and Type
+    $VirtualMachine = New-AzVMConfig -VMName $tempVMName -VMSize Standard_B1s -Tags $tempVmTags
+    $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Linux -ComputerName testvm -Credential $psCred 
+    $VirtualMachine = Add-AzVMNetworkInterface -VM $VirtualMachine -Id $NIC.Id
+
+    try {
+        ## Set the VM Source Image
+        $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName 'Canonical' -Offer 'UbuntuServer' -Skus '18_04-lts-gen2' -Version "latest"
+
+        New-AzVM -ResourceGroupName $rg -Location $region -VM $VirtualMachine -WarningAction silentlyContinue | Out-Null
+        Set-AzVMExtension -ResourceGroupName $rg -Location $region -VMName $tempVMName -Name "NetworkWatcherAgentLinux" -ExtensionType "NetworkWatcherAgentLinux" -Publisher "Microsoft.Azure.NetworkWatcher" -TypeHandlerVersion "1.4" | Out-Null
+        # 2/ Wait for the VM to be created
+        ####################
+        $VMStatus = (Get-AzVM -Name $tempVMName -ResourceGroupName $rg -Status).Statuses[1].DisplayStatus
+        while ($VMStatus -ne "VM running" ) {
+            Write-Progress "Creating a temporary test VM in System subnet" -PercentComplete 75
+            Start-Sleep -Seconds 10
+        }
+    }
+    catch {
+        Write-Host "An error occurred:"
+        Write-Host $_
+        exit
+    }
+
+    Write-Progress "Creating a temporary test VM in System subnet" -PercentComplete 100
+
+    # 3/ Run Command against the Test_VM
+    ####################
+    Write-Progress "Testing endpoints connectivity (approx. 5 mins)" -Status "waiting..." -PercentComplete 0
+
+    $VM1 = Get-AzVM -ResourceGroupName $rg | Where-Object -Property Name -EQ $tempVMName
+    Write-Progress "Testing endpoints connectivity (approx. 5 mins)" -Status "starting..." -PercentComplete 0
+    
+    $networkWatcher = Get-AzNetworkWatcher | Where-Object -Property Location -EQ -Value $VM1.Location 
+    
+    Write-Progress "Testing endpoints connectivity (approx. 5 mins)" -Status "started" -PercentComplete 10
+    
+    $i = 0;
+    foreach ($endpoint in $endpointsToTest) {
+        Write-Progress "Testing endpoints connectivity (approx. 5 mins)" -CurrentOperation $endpoint -PercentComplete (($i + 1) * 100 / $endpointsToTest.Count)
+
+        $TestConnectionStatus = (Test-AzNetworkWatcherConnectivity -NetworkWatcher $networkWatcher -SourceId $VM1.id -DestinationAddress $endpoint -DestinationPort 443).ConnectionStatus
+        if ($TestConnectionStatus -eq "Reachable") {
+            $finalReportOutput += [pscustomobject]@{
+                TestName = "$endpoint connection"
+                Result   = "OK"
+                Details  = "Connection over HTTPS (port 443) has been succesfully established to $endpoint"
+            };
+        }
+        else {
+            $finalReportOutput += [pscustomobject]@{
+                TestName = "$endpoint connection"
+                Result   = "FAILED"
+                Details  = "Connection over HTTPS (port 443) has NOT been succesfully established to $endpoint"
+            };
+        }  
+
+        $i++;
+    }
+
+    Write-Progress "Testing endpoints connectivity (approx. 5 mins)" -PercentComplete 100
+    
+    # 4/ Remove the Test_VM
+    Write-Progress "Removing the temporary test VM" -PercentComplete 0
+    $vm = Get-AzVm -Name $tempVMName -ResourceGroupName $rg
+    
     $diskName = $vm.StorageProfile.OsDisk.Name
     $null = $vm | Remove-AzVM -Force
-    Remove-AzNetworkInterface -Name "$testVMName-NIC" -ResourceGroupName $rg -Force
+    Write-Progress "Removing the temporary test VM" -PercentComplete 25
+    Remove-AzNetworkInterface -Name "$tempVMName-NIC" -ResourceGroupName $rg -Force
+    Write-Progress "Removing the temporary test VM" -PercentComplete 50
     Remove-AzDisk -ResourceGroupName $rg -DiskName $diskName -Force  | Out-Null
-    Remove-AzNetworkSecurityGroup -ResourceGroupName $rg -Name "$testVMName-NSG" -Force
-    Write-Host "$testVMName VM is deleted"
-} else {
-    Write-Host "Your choice is No. $testVMName will not be deleted" -ForegroundColor Red
+    Write-Progress "Removing the temporary test VM" -PercentComplete 75
+    Remove-AzNetworkSecurityGroup -ResourceGroupName $rg -Name "$tempVMName-NSG" -Force
+    Write-Progress "Removing the temporary test VM" -PercentComplete 100
 }
 
+finally {
+    Write-Output ""
+    Write-Output "-----------------------------------------------------"
+    Write-Output "                   Final Report                      "
+    write-Output "-----------------------------------------------------"
+
+    Write-Output $finalReportOutput | Format-Table @{
+        Label      = 'TestName'
+        Expression =
+        { 
+            switch ($_.TestName) {
+                { $_ } { $color = "$($PSStyle.Foreground.FromRGB(255,255,49))" }
+            }
+            "$color$($_.TestName)$($PSStyle.Reset)" 
+        }
+    },
+    @{
+        Label      = 'Result'
+        Expression =
+        { 
+            switch ($_.Result) {
+                { $_ -eq "OK" } { $color = "$($PSStyle.Foreground.Green)" }
+                { $_ -ne "OK" } { $color = "$($PSStyle.Foreground.Red)$($PSStyle.Blink)" }
+            }
+            "$color$($_.Result)$($PSStyle.Reset)"
+        }
+
+    },
+    @{
+        Label      = 'Details'
+        Expression =
+        { 
+            "$color$($_.Details)$($PSStyle.Reset)"
+        }
+
+    }
+}

@@ -1,6 +1,6 @@
 <#
   paz-checklist.ps1 - 
-  Version:        3.0.0
+  Version:        3.0.1
   Author:         Vaclav Jirovsky, Adam Mazouz @ Pure Storage
 .SYNOPSIS
     Checking if the prerequisites required for deploying Cloud Block Store are met before create the array on Azure.
@@ -25,6 +25,7 @@
     Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first
         Connect-AzAccount
 .CHANGELOG
+    3/15/2024 3.0.1 Improved test for outbound connectivity (to deploy a test load balancer)
     3/12/2024 3.0.0 Script refactored, to provide a full report of the readiness of the environment for CBS deployment
     26/1/2024 2.0.1 Adding V20MP2R2 and PremiumV2 SSD support to the script
 #>
@@ -99,7 +100,7 @@ else {
     Exit
 }
 
-$CLI_VERSION = "3.0.0"
+$CLI_VERSION = "3.0.1"
 
 Write-Host -ForegroundColor DarkRed -BackgroundColor Black @"
  _____                   _____ _                              
@@ -365,15 +366,30 @@ try {
     
     # 1/ Create Test_VM in System Subnet
     ####################
-    Write-Progress "Creating a temporary test VM in System subnet" -PercentComplete 0
+    
     $region = (Get-AzVirtualNetwork -Name  $cbsVNETName).Location
+
+    Write-Progress "Creating a temporary test loadbalancer in System subnet" -PercentComplete 0
+
+    $backendPool = New-AzLoadBalancerBackendAddressPoolConfig -Name myBackendPool
+    $frontendIP = New-AzLoadBalancerFrontendIpConfig -Name myFrontendIP -Subnet $PSSubnet
+    $lbRule = New-AzLoadBalancerRuleConfig -Name myLoadBalancerRule -FrontendIpConfiguration $frontendIP -BackendAddressPool $backendPool -Protocol Tcp -FrontendPort 80 -BackendPort 80
+    
+    Write-Progress "Creating a temporary test loadbalancer in System subnet" -PercentComplete 50
+
+    $loadBalancer = New-AzLoadBalancer -ResourceGroupName $rg -Name myLoadBalancer -Location $region -FrontendIpConfiguration $frontendIP -LoadBalancingRule $lbRule -BackendAddressPool $backendPool -Sku "Standard"
+    
+    $bepool = $loadBalancer.BackendAddressPools[0]
+    Write-Progress "Creating a temporary test loadbalancer in System subnet" -PercentComplete 100
+
+    Write-Progress "Creating a temporary test VM in System subnet" -PercentComplete 0
     ## Define a credential object to store the username and password for the virtual machine
     $UserName = "azureuser"
     $Password = ConvertTo-SecureString ( -Join ("ABCDabcd&@#$%1234".tochararray() | Get-Random -Count 10 | % { [char]$_ })) -AsPlainText -Force
     $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
 
     $NetworkSG = New-AzNetworkSecurityGroup -ResourceGroupName $rg -Location $region -Name "$tempVMName-NSG" -Force
-    $NIC = New-AzNetworkInterface -Name "$tempVMName-NIC" -ResourceGroupName $rg -Location $region -Subnet $PSSubnet -NetworkSecurityGroup $NetworkSG -Force 
+    $NIC = New-AzNetworkInterface -Name "$tempVMName-NIC" -ResourceGroupName $rg -Location $region -Subnet $PSSubnet -LoadBalancerBackendAddressPool $bepool -NetworkSecurityGroup $NetworkSG -Force
 
     Write-Progress "Creating a temporary test VM in System subnet" -PercentComplete 50
     ## Set the VM Size and Type
@@ -452,6 +468,9 @@ try {
     Write-Progress "Removing the temporary test VM" -PercentComplete 75
     Remove-AzNetworkSecurityGroup -ResourceGroupName $rg -Name "$tempVMName-NSG" -Force
     Write-Progress "Removing the temporary test VM" -PercentComplete 100
+    Write-Progress "Removing the temporary load balancer" -PercentComplete 0
+    Remove-AzLoadBalancer -ResourceGroupName $rg -Name myLoadBalancer -Force
+    Write-Progress "Removing the temporary load balancer" -PercentComplete 100
 }
 
 finally {

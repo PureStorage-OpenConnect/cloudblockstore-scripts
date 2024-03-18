@@ -1,19 +1,40 @@
 # Azure Pre-Deployment Checklist for Cloud Block Store
 
-
 ![paz-checklist.ps1 script to validate Azure landing zone for CBS deployment](screenshot.png)
 
-### Note: **To run this PowerShell script, make sure you are signed in to your Azure account. Alternatively, use can Azure Console Cloud Shell.**
-Option 1: Use Azure Cloud Shell to paste the script and run it
+## Usage
+
+To run this PowerShell script, make sure you are signed in to your Azure account. Alternatively, use can Azure Cloud Shell.
+
+### Option 1 - Use Azure Cloud Shell
+
+1. open a Azure Cloud Shell console and make sure you have selected a Powershell runtime (by default the Azure Cloud Shell starts in Bash runtime)
+
+1. download the script from GitHub (alternatively you can upload manually via Download/Upload files feature)
+
+```powershell
+& wget https://raw.githubusercontent.com/PureStorage-OpenConnect/cloudblockstore-scripts/main/CBS-Azure-Solutions/pre-deployment-checklist/paz-checklist.ps1
 ```
+
+1. execute the script
+
+```powershell
 & paz-checklist.ps1
 ```
-Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first:
-```
+
+
+### Option 2 - Local machine
+
+1. Install Azure Powershell Module
+1. Login into Azure:
+
+```powershell
 Connect-AzAccount
 ```
-Then execute the PS script
-```
+
+1. Eecute the script
+
+```powershell
 & paz-checklist.ps1
 ```
 

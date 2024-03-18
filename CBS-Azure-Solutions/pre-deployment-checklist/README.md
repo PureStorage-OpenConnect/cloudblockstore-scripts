@@ -25,7 +25,8 @@ This script will validate and verify the following:
 - Check if the System Subnet has outbound internet access to Pure1 cloud.
 - Check if the Signed In User has the required Azure Role Assignment.
 
-
 CHANGELOG
+
+- 3/15/2024 3.0.1 Improved test for outbound connectivity (to deploy a test load balancer)
 - 3/12/2024 3.0.0 Script refactored, to provide a full report of the readiness of the environment for CBS deployment
 - 26/1/2024 2.0.1 Adding V20P2R2 and PremiumV2 SSD support to the script

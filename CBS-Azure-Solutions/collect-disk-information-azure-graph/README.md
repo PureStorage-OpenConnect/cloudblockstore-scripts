@@ -6,4 +6,4 @@ This code used in Azure Resource Graph Explorer to collect VM Disk information w
 
 Download as a CVS after the query has executed
 
-![screenshot](/CBS-Azure-Solutions/collect-disk-information-azure-graph/CSV_Screenshot.jpg)
+![screenshot](/CSV_Screenshot.jpg)

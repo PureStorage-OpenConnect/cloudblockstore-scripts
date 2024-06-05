@@ -103,6 +103,11 @@ $virtualMachines | ForEach-Object -Parallel {
         $location = $vm.Location
         $operatingSystem = $vm.StorageProfile.OsDisk.OsType
 
+        #Get Network Info
+        $vmnic = ($vm.NetworkProfile.NetworkInterfaces.id).Split('/')[-1]
+        $vmnicinfo = Get-AzNetworkInterface -Name $vmnic
+        $vmvnet = $((($vmnicinfo.IpConfigurations.subnet.id).Split('/'))[-3])
+
         # Check if VM is deplyed in availabilityZone or None
         $availabilityZone = $vm.Zones
         if ([string]::IsNullOrWhiteSpace($availabilityZone)) {
@@ -169,6 +174,7 @@ $virtualMachines | ForEach-Object -Parallel {
                 Utilized_Read_Max_BW_MBps = $disk_BW_read_Max / 1MB
                 Utilized_Write_Avg_BW_MBps = $disk_BW_write_Avg / 1MB
                 Utilized_Write_Max_BW_MBps = $disk_BW_write_Max / 1MB
+                VirtualNetwork = $vmvnet
             }
 
             # Add the hashtable to the array
@@ -180,7 +186,7 @@ $virtualMachines | ForEach-Object -Parallel {
 ################################################
 
 # Display the data disk information as a table
-$dataDiskInfoTSDictionary.Values | Format-Table VMName, Location, AvailabilityZone, OperatingSystem, DataDiskName, DiskSKU, SizeGB, Provisioned_IOPS, Utilized_Read_IOPS, Utilized_Write_IOPS, Provisioned_BW_MBps, Utilized_Read_Avg_BW_MBps, Utilized_Read_Max_BW_MBps, Utilized_Write_Avg_BW_MBps, Utilized_Write_Max_BW_MBps  
+$dataDiskInfoTSDictionary.Values | Format-Table VMName, Location, AvailabilityZone, OperatingSystem, DataDiskName, DiskSKU, SizeGB, Provisioned_IOPS, Utilized_Read_IOPS, Utilized_Write_IOPS, Provisioned_BW_MBps, Utilized_Read_Avg_BW_MBps, Utilized_Read_Max_BW_MBps, Utilized_Write_Avg_BW_MBps, Utilized_Write_Max_BW_MBps, VirtualNetwork
 
 $reportName = "AzureDataDisk.csv"
 $dataDiskInfoTSDictionary.Values  | Export-csv .\$reportName

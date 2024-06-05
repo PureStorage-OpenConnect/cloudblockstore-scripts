@@ -1,0 +1,2 @@
+"VMName","Utilized_Read_Avg_BW_MBps","Utilized_Read_IOPS","Provisioned_IOPS","OperatingSystem","DataDiskName","DiskSKU","SizeGB","Utilized_Write_IOPS","Utilized_Write_Max_BW_MBps","Provisioned_BW_MBps","Utilized_Write_Avg_BW_MBps","Utilized_Read_Max_BW_MBps","Location","AvailabilityZone"
+"gso-fsa-ds-lin","0",,"120","Linux","gfgdf","Premium_LRS","4",,"0","25","0","0","westus2","1"

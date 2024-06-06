@@ -1,29 +1,26 @@
 <#
-  Get-AzDataDisk-IO-BW.ps1 
-  Version:        1.2
-  Authors:        Adam Mazouz @ Pure Storage
-                  Vaclav Jirvosky @ Pure Storage
+Get-AzDataDisk-IO-BW.ps1
+Version:        1.2
+Authors:        Adam Mazouz @ Pure Storage
+                Vaclav Jirvosky @ Pure Storage
 .SYNOPSIS
     This script retrives all Azure Managed Data Disks attached to Azure VM. It lists Size, IOPS, BW, OS, Availability Zone, Disk SKU Name
 
 .CHANGELOG
-    - 1.2 Improved execution time by adding concurrency 
+    - 1.2 Improved execution time by adding concurrency
     - 1.1 Added peak (Max) Consumed IOPS and Bandwidth infomration
 .INPUTS
-      - Azure Subscription Id.
-      - Resource Group 
+        - Azure Subscription Id.
+        - Resource Group
 .OUTPUTS
-      - Print out table of Azure VM Name, Size, IOPS, BW, OS, Availability Zone, Disk SKU. 
-      - Output all the informwation into CSV report.
-.EXAMPLE
-    Option 1: Use Azure CloudShell to paste the script and run it
+        - Print out table of Azure VM Name, Size, IOPS, BW, OS, Availability Zone, Disk SKU.
         .\Get-AzDataDisk-IO-BW.ps1
     Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first
         Connect-AzAccount
 #>
 <#
 .DISCLAIMER
-The sample script and documentation are provided AS IS and are not supported by the author or the author's employer, unless otherwise agreed in writing. You bear all risk relating to the use or performance of the sample script and documentation. 
+The sample script and documentation are provided AS IS and are not supported by the author or the author's employer, unless otherwise agreed in writing. You bear all risk relating to the use or performance of the sample script and documentation.
 The author and the author's employer disclaim all express or implied warranties (including, without limitation, any warranties of merchantability, title, infringement 	or fitness for a particular purpose). In no event shall the author, the author's employer or anyone else involved in the creation, production, or delivery of the scripts be liable for any damages whatsoever arising out of the use or performance of the sample script and 	documentation (including, without limitation, damages for loss of business profits, business interruption, loss of business information, or other pecuniary loss), even if 	such person has been advised of the possibility of such damages.
 #>
 
@@ -34,12 +31,10 @@ param (
     [ValidateScript(
         { $null -ne (Get-AzSubscription -SubscriptionId $_ -WarningAction silentlyContinue) },
         ErrorMessage = "Subscription was not found in tenant {0} . Please verify that the subscription exists in the signed-in tenant."
-    )]         
+    )]
     [string]
     $subscriptionId,
-
-    
-    [Parameter(HelpMessage = "(Optional) Enter your Resource Group Name")]  
+    [Parameter(HelpMessage = "(Optional) Enter your Resource Group Name")]
     [string]
     $resourceGroupName
 )
@@ -190,5 +185,4 @@ $dataDiskInfoTSDictionary.Values | Format-Table VMName, Location, AvailabilityZo
 
 $reportName = "AzureDataDisk.csv"
 $dataDiskInfoTSDictionary.Values  | Export-csv .\$reportName
-
 

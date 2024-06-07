@@ -25,6 +25,7 @@
     Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first
         Connect-AzAccount
 .CHANGELOG
+    6/6/2024  3.0.2 Added ability to modify SKU and OS types
     3/15/2024 3.0.1 Improved test for outbound connectivity (to deploy a test load balancer)
     3/12/2024 3.0.0 Script refactored, to provide a full report of the readiness of the environment for CBS deployment
     26/1/2024 2.0.1 Adding V20MP2R2 and PremiumV2 SSD support to the script
@@ -67,10 +68,26 @@ param (
 
     [Parameter(Mandatory = $false, HelpMessage = "List of tags to be assigned to the temporary VM created for connectivity tests, required by your Azure landing zone (e.g. @{'tag1'='value1';'tag2'='value2'})")]
     [hashtable]
-    $tempVmTags = @{}
+    $tempVmTags = @{},
+
+    [Parameter(Mandatory = $false, HelpMessage = "VM Size to be Used. Defaults to Standard_B1s")]
+    $tempVmSize = "",
+
+    [Parameter(Mandatory = $false, HelpMessage = "VM Operating System to be Used. Choices, Suse, Ubuntu, Redhat. Defaults to Ubuntu")]
+    $tempVmOS = "Ubuntu"
 ) 
 
 $finalReportOutput = @()
+
+$AcceptableOS = @("Ubuntu","RedHat","Suse")
+if ($tempVmOS -in $AcceptableOS) {
+
+}
+else {
+    Write-Error "Unknown VM Operating System selected. Please select one of the following: Ubuntu, Suse, Redhat";
+    Exit
+}
+
 
 if ($cbsModel -eq "V20MP2R2") {
     $supportedRegions = 
@@ -100,7 +117,7 @@ else {
     Exit
 }
 
-$CLI_VERSION = "3.0.1"
+$CLI_VERSION = "3.0.2"
 
 Write-Host -ForegroundColor DarkRed -BackgroundColor Black @"
  _____                   _____ _                              
@@ -110,14 +127,12 @@ Write-Host -ForegroundColor DarkRed -BackgroundColor Black @"
 | |   | |_| | | |  __/  ____) | || (_) | | | (_| | (_| |  __/ 
 |_|    \__,_|_|  \___| |_____/ \__\___/|_|  \__,_|\__, |\___| 
                                                    __/ /     
-
-
 "@
 
 Write-Host  @"
 ------------------------------------------------------------
     Pure Cloud Block Store - Pre-Deployment Check Report 
-                (c) 2023 Pure Storage
+                (c) 2024 Pure Storage
                         v$CLI_VERSION
 ------------------------------------------------------------
 "@
@@ -392,14 +407,28 @@ try {
     $NIC = New-AzNetworkInterface -Name "$tempVMName-NIC" -ResourceGroupName $rg -Location $region -Subnet $PSSubnet -LoadBalancerBackendAddressPool $bepool -NetworkSecurityGroup $NetworkSG -Force
 
     Write-Progress "Creating a temporary test VM in System subnet" -PercentComplete 50
+    
     ## Set the VM Size and Type
-    $VirtualMachine = New-AzVMConfig -VMName $tempVMName -VMSize Standard_B1s -Tags $tempVmTags
+    if ($tempVmSize -eq $null) {
+        $VirtualMachine = New-AzVMConfig -VMName $tempVMName -VMSize Standard_B1s -Tags $tempVmTags
+    }
+    else {
+        $VirtualMachine = New-AzVMConfig -VMName $tempVMName -VMSize $tempVmSize -Tags $tempVmTags
+    }
     $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Linux -ComputerName testvm -Credential $psCred 
     $VirtualMachine = Add-AzVMNetworkInterface -VM $VirtualMachine -Id $NIC.Id
 
     try {
         ## Set the VM Source Image
-        $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName 'Canonical' -Offer 'UbuntuServer' -Skus '18_04-lts-gen2' -Version "latest"
+        if ($tempVmOS -eq "Ubuntu") {
+            $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName 'Canonical' -Offer 'UbuntuServer' -Skus '18_04-lts-gen2' -Version "latest"
+        }
+        elseif ($tempVmOS -eq "Suse") {
+            $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName 'suse' -Offer 'sles-12-sp5-basic' -Skus 'gen2' -Version "latest"
+        }
+        elseif ($tempVmOS -eq "Redhat") {
+            $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName 'redhat' -Offer 'RHEL' -Skus '87-gen2' -Version "latest"
+        }
 
         New-AzVM -ResourceGroupName $rg -Location $region -VM $VirtualMachine -WarningAction silentlyContinue | Out-Null
         Set-AzVMExtension -ResourceGroupName $rg -Location $region -VMName $tempVMName -Name "NetworkWatcherAgentLinux" -ExtensionType "NetworkWatcherAgentLinux" -Publisher "Microsoft.Azure.NetworkWatcher" -TypeHandlerVersion "1.4" | Out-Null
@@ -469,7 +498,7 @@ try {
     Remove-AzNetworkSecurityGroup -ResourceGroupName $rg -Name "$tempVMName-NSG" -Force
     Write-Progress "Removing the temporary test VM" -PercentComplete 100
     Write-Progress "Removing the temporary load balancer" -PercentComplete 0
-    Remove-AzLoadBalancer -ResourceGroupName $rg -Name myLoadBalancer -Force
+    Remove-AzLoadBalancer -ResourceGroupName $rg -Name "$TempVMName-LB" -Force
     Write-Progress "Removing the temporary load balancer" -PercentComplete 100
 }
 

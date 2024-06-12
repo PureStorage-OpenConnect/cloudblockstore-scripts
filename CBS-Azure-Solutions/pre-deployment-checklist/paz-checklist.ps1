@@ -25,7 +25,7 @@
     Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first
         Connect-AzAccount
 .CHANGELOG
-    6/6/2024  3.0.2 Added ability to modify SKU and OS types
+    6/6/2024  3.0.2 Added ability to modify VM Size and VM OS types
     3/15/2024 3.0.1 Improved test for outbound connectivity (to deploy a test load balancer)
     3/12/2024 3.0.0 Script refactored, to provide a full report of the readiness of the environment for CBS deployment
     26/1/2024 2.0.1 Adding V20MP2R2 and PremiumV2 SSD support to the script
@@ -71,7 +71,7 @@ param (
     $tempVmTags = @{},
 
     [Parameter(Mandatory = $false, HelpMessage = "VM Size to be Used. Defaults to Standard_B1s")]
-    $tempVmSize = "",
+    $tempVmSize = "Standard_B1s",
 
     [Parameter(Mandatory = $false, HelpMessage = "VM Operating System to be Used. Choices, Suse, Ubuntu, Redhat. Defaults to Ubuntu")]
     $tempVmOS = "Ubuntu"
@@ -407,17 +407,18 @@ try {
     $NIC = New-AzNetworkInterface -Name "$tempVMName-NIC" -ResourceGroupName $rg -Location $region -Subnet $PSSubnet -LoadBalancerBackendAddressPool $bepool -NetworkSecurityGroup $NetworkSG -Force
 
     Write-Progress "Creating a temporary test VM in System subnet" -PercentComplete 50
-    
-    ## Set the VM Size and Type
-    if ($tempVmSize -eq $null) {
-        $VirtualMachine = New-AzVMConfig -VMName $tempVMName -VMSize Standard_B1s -Tags $tempVmTags
-    }
-    else {
-        $VirtualMachine = New-AzVMConfig -VMName $tempVMName -VMSize $tempVmSize -Tags $tempVmTags
-    }
-    $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Linux -ComputerName testvm -Credential $psCred 
-    $VirtualMachine = Add-AzVMNetworkInterface -VM $VirtualMachine -Id $NIC.Id
 
+    try {
+        ## Set the VM Size and Type
+        $VirtualMachine = New-AzVMConfig -VMName $tempVMName -VMSize $tempVmSize -Tags $tempVmTags
+        $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Linux -ComputerName testvm -Credential $psCred
+        $VirtualMachine = Add-AzVMNetworkInterface -VM $VirtualMachine -Id $NIC.Id
+    }
+        catch {
+            Write-Host "An error occurred:"
+            Write-Host $_
+            exit
+        }
     try {
         ## Set the VM Source Image
         if ($tempVmOS -eq "Ubuntu") {

@@ -51,6 +51,7 @@ This script will validate and verify the following:
 
 CHANGELOG
 
+- 7/11/2024 3.0.3 Added Microsoft.Storage Endpoint, Fixed naming of the LB
 - 6/6/2024  3.0.2 Added ability to modify VM Size and VM OS types
 - 3/15/2024 3.0.1 Improved test for outbound connectivity (to deploy a test load balancer)
 - 3/12/2024 3.0.0 Script refactored, to provide a full report of the readiness of the environment for CBS deployment

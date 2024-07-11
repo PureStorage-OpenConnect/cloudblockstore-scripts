@@ -1,30 +1,30 @@
 <#
-  paz-checklist.ps1 - 
-  Version:        3.0.1
-  Author:         Vaclav Jirovsky, Adam Mazouz @ Pure Storage
+    paz-checklist.ps1 -
+    Version:        3.0.3
+    Author:         Vaclav Jirovsky, Adam Mazouz, David Stamen @ Pure Storage
 .SYNOPSIS
     Checking if the prerequisites required for deploying Cloud Block Store are met before create the array on Azure.
 .DESCRIPTION
-  This script will validate and verify the following: 
-	  - Check if the region where VNET is created is supported for CBS deployments. 
-	  - Check if the region has enough Ebdsv5 or DSv3 Family vCPU to deploy Cloud Block Store.
-	  - Check if the Ultra Disks are available and in which Availability Zone. 
-	  - Check if the System Subnet has outbound internet Access.
-      - Check if the Signed In User has the required Azure Role Assignment.
+    This script will validate and verify the following:
+	- Check if the region where VNET is created is supported for CBS deployments.
+	- Check if the region has enough Ebdsv5 or DSv3 Family vCPU to deploy Cloud Block Store.
+	- Check if the System Subnet has outbound internet Access.
+    - Check if the Signed In User has the required Azure Role Assignment.
 .INPUTS
-      - Azure Subscription Id.
-      - Pure Cloud Block Store Model (V20MUR1, V10MUR1, V20MP2R2).
-      - Azure Virtual Network, where CBS subnets are located. 
-      - Azure Subnet, designated for CBS System subnet. 
-      - (optional) Tags to be assigned for a temporary VM created for connectivity test
+    - Azure Subscription Id.
+    - Pure Cloud Block Store Model (V20MUR1, V10MUR1, V20MP2R2).
+    - Azure Virtual Network, where CBS subnets are located.
+    - Azure Subnet, designated for CBS System subnet.
+    - (optional) Tags to be assigned for a temporary VM created for connectivity test
 .OUTPUTS
-    Print out the on console the validation results. 
+    Print out the on console the validation results.
 .EXAMPLE
     Option 1: Use Azure Cloud Shell to paste the script and run it
         & paz-checklist.ps1
     Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first
         Connect-AzAccount
 .CHANGELOG
+    7/11/2024 3.0.3 Added Microsoft.Storage Endpoint, Fixed naming of the LB
     6/6/2024  3.0.2 Added ability to modify VM Size and VM OS types
     3/15/2024 3.0.1 Improved test for outbound connectivity (to deploy a test load balancer)
     3/12/2024 3.0.0 Script refactored, to provide a full report of the readiness of the environment for CBS deployment
@@ -41,13 +41,13 @@ param (
     [ValidateScript(
         { $null -ne (Get-AzSubscription -SubscriptionId $_ -WarningAction silentlyContinue) },
         ErrorMessage = "Subscription  was not found in tenant {0} . Please verify that the subscription exists in this tenant."
-    )]         
+    )]
     [string]
     $subscriptionId,
 
     [Parameter(Mandatory = $true, HelpMessage = "Enter CBS Model (V10MUR1, V20MUR1, V20MP2R2)")]
     [ValidateNotNullOrEmpty()]
-    [ValidateSet("V10MUR1", "V20MUR1", "V20MP2R2")] 
+    [ValidateSet("V10MUR1", "V20MUR1", "V20MP2R2")]
     [string]
     $cbsModel,
 
@@ -64,7 +64,7 @@ param (
     [Parameter(Mandatory = $false, HelpMessage = "Enter name for temporary VM created for connectivity tests")]
     [ValidateNotNullOrEmpty()]
     [string]
-    $tempVmName = "CBS_PreDeploy_Checklist_VM_Temp",
+    $tempVmName = "CBS_PreCheck_TempVM",
 
     [Parameter(Mandatory = $false, HelpMessage = "List of tags to be assigned to the temporary VM created for connectivity tests, required by your Azure landing zone (e.g. @{'tag1'='value1';'tag2'='value2'})")]
     [hashtable]
@@ -90,26 +90,26 @@ else {
 
 
 if ($cbsModel -eq "V20MP2R2") {
-    $supportedRegions = 
-    "centralus", "eastus", "eastus2", 
-    "southcentralus", "westus3", "westus2", 
-    "canadacentral", "northeurope", "westeurope", 
-    "uksouth", "francecentral", "switzerlandnorth", 
-    "swedencentral", "southeastasia", "japaneast", 
-    "australiaeast", "koreacentral" , "brazilsouth", 
+    $supportedRegions =
+    "centralus", "eastus", "eastus2",
+    "southcentralus", "westus3", "westus2",
+    "canadacentral", "northeurope", "westeurope",
+    "uksouth", "francecentral", "switzerlandnorth",
+    "swedencentral", "southeastasia", "japaneast",
+    "australiaeast", "koreacentral" , "brazilsouth",
     "uaenorth", "centralindia", "southafricanorth",
     "norwayeast", "eastasia", "israelcentral"
 }
-elseif ($cbsModel -eq "V10MUR1" -or $cbsModel -eq "V20MUR1") { 
-    $supportedRegions = 
-    "centralus", "eastus", "eastus2", 
-    "southcentralus", "northcentralus", "westus3", 
-    "westus2", "westus", "northeurope", 
-    "westeurope", "uksouth", "francecentral", 
-    "switzerlandnorth", "swedencentral", "southeastasia", 
-    "germanywestcentral", "japaneast", "australiaeast", 
-    "koreacentral" , "brazilsouth", "uaenorth", 
-    "centralindia", "southafricanorth", "qatarcentral", 
+elseif ($cbsModel -eq "V10MUR1" -or $cbsModel -eq "V20MUR1") {
+    $supportedRegions =
+    "centralus", "eastus", "eastus2",
+    "southcentralus", "northcentralus", "westus3",
+    "westus2", "westus", "northeurope",
+    "westeurope", "uksouth", "francecentral",
+    "switzerlandnorth", "swedencentral", "southeastasia",
+    "germanywestcentral", "japaneast", "australiaeast",
+    "koreacentral" , "brazilsouth", "uaenorth",
+    "centralindia", "southafricanorth", "qatarcentral",
     "eastasia", "australiacentral", "koreasouth"
 }
 else {
@@ -117,7 +117,7 @@ else {
     Exit
 }
 
-$CLI_VERSION = "3.0.2"
+$CLI_VERSION = "3.0.3"
 
 Write-Host -ForegroundColor DarkRed -BackgroundColor Black @"
  _____                   _____ _                              
@@ -131,7 +131,7 @@ Write-Host -ForegroundColor DarkRed -BackgroundColor Black @"
 
 Write-Host  @"
 ------------------------------------------------------------
-    Pure Cloud Block Store - Pre-Deployment Check Report 
+    Pure Cloud Block Store - Pre-Deployment Check Report
                 (c) 2024 Pure Storage
                         v$CLI_VERSION
 ------------------------------------------------------------
@@ -145,18 +145,15 @@ try {
 
     $PSStyle.Progress.View = 'Classic'
     
-    $endpointsToTest = 
-    "rest.cloud-support.purestorage.com", 
-    "ra.cloud-support.purestorage.com", 
-    "restricted-rest.cloud-support.purestorage.com", 
-    "restricted-ra.cloud-support.purestorage.com", 
-    "rest.cloud-support.purestorage.com", 
-    "rest2.cloud-support.purestorage.com", 
+    $endpointsToTest =
+    "rest.cloud-support.purestorage.com",
+    "ra.cloud-support.purestorage.com",
+    "restricted-rest.cloud-support.purestorage.com",
+    "restricted-ra.cloud-support.purestorage.com",
+    "rest.cloud-support.purestorage.com",
+    "rest2.cloud-support.purestorage.com",
     "management.azure.com",
     "cosmos.azure.com"
-    
-
-
 
     # Resource_Group
     Write-Progress "Checking vNET presence" -PercentComplete 0
@@ -199,13 +196,13 @@ try {
     };
 
     Write-Progress "Checking subnet presence" -PercentComplete 100
-    
+
     Write-Progress "Checking region support" -PercentComplete 0
     # REGION
     $region = (Get-AzVirtualNetwork -Name  $cbsVNETName).Location
 
     ###################
-    ## Region Supported ## 
+    ## Region Supported ##
     ###################
     if ($region -in $supportedRegions) {
         $finalReportOutput += [pscustomobject]@{
@@ -223,14 +220,12 @@ try {
     }
 
     Write-Progress "Checking region support" -PercentComplete 100
-    
-    
     Write-Progress "Checking vCPU limits" -PercentComplete 0
 
     ###################
-    ## vCPU Limits ## 
+    ##  vCPU Limits  ##
     ###################
-    
+
     $cbsVCPU = switch ($cbsModel) {
         "V10MUR1" { 32 }
         "V20MUR1" { 64 }
@@ -328,10 +323,9 @@ try {
         };
     }
 
-    Write-Progress "Checking Service Endpoints" -PercentComplete 50
+    Write-Progress "Checking Service Endpoints" -PercentComplete 40
 
     if ($ServiceEndpoints.Service -eq "Microsoft.KeyVault") {
-        
         $finalReportOutput += [pscustomobject]@{
             TestName = "Azure Key Vault Service Endpoint"
             Result   = "OK"
@@ -339,23 +333,39 @@ try {
         };
     }
     else {
-        
         $finalReportOutput += [pscustomobject]@{
             TestName = "Azure KeyVault Service Endpoint"
             Result   = "FAILED"
             Details  = "The service endpoint for KeyVault is NOT attached to the System Subnet '$vnetSystemSubnetName'"
         };
-    } 
+    }
+
+    Write-Progress "Checking Service Endpoints" -PercentComplete 65
+
+    if ($ServiceEndpoints.Service -eq "Microsoft.Storage") {
+        $finalReportOutput += [pscustomobject]@{
+            TestName = "Azure Storage Service Endpoint"
+            Result   = "OK"
+            Details  = "The service endpoint for Storage is attached to the System Subnet '$vnetSystemSubnetName'"
+        };
+    }
+    else {
+        $finalReportOutput += [pscustomobject]@{
+            TestName = "Azure Storage Service Endpoint"
+            Result   = "FAILED"
+            Details  = "The service endpoint for Storage is NOT attached to the System Subnet '$vnetSystemSubnetName'"
+        };
+    }
 
     Write-Progress "Checking Service Endpoints" -PercentComplete 100
 
     ####################
-    ## Azure IAM Roles ## 
+    ## Azure IAM Roles ##
     ####################
     Write-Progress "Checking IAM Role" -PercentComplete 0
     $currentSignInName = (Get-AzContext).Account.Id
     $listOfAssignedRoles = Get-AzRoleAssignment -Scope /subscriptions/$subscriptionId | Where-Object -Property SignInName -EQ $currentSignInName
-    $collections = $listOfAssignedRoles.RoleDefinitionName 
+    $collections = $listOfAssignedRoles.RoleDefinitionName
     if ($listOfAssignedRoles) {
         if ($collections -like "Contributor" -or $collections -like "Owner" -or $collections -like "Managed Application Contributor Role") {
             $finalReportOutput += [pscustomobject]@{
@@ -392,7 +402,7 @@ try {
     
     Write-Progress "Creating a temporary test loadbalancer in System subnet" -PercentComplete 50
 
-    $loadBalancer = New-AzLoadBalancer -ResourceGroupName $rg -Name myLoadBalancer -Location $region -FrontendIpConfiguration $frontendIP -LoadBalancingRule $lbRule -BackendAddressPool $backendPool -Sku "Standard"
+    $loadBalancer = New-AzLoadBalancer -ResourceGroupName $rg -Name "$TempVMName-LB" -Location $region -FrontendIpConfiguration $frontendIP -LoadBalancingRule $lbRule -BackendAddressPool $backendPool -Sku "Standard"
     
     $bepool = $loadBalancer.BackendAddressPools[0]
     Write-Progress "Creating a temporary test loadbalancer in System subnet" -PercentComplete 100

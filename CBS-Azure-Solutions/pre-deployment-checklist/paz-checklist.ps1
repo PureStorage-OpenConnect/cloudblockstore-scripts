@@ -1,6 +1,6 @@
 <#
     paz-checklist.ps1 -
-    Version:        3.0.3
+    Version:        3.0.4
     Author:         Vaclav Jirovsky, Adam Mazouz, David Stamen @ Pure Storage
 .SYNOPSIS
     Checking if the prerequisites required for deploying Cloud Block Store are met before create the array on Azure.
@@ -24,6 +24,7 @@
     Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first
         Connect-AzAccount
 .CHANGELOG
+    7/15/2024 3.0.4 Updated Region Support, V10MP2R2
     7/11/2024 3.0.3 Added Microsoft.Storage Endpoint, Fixed naming of the LB
     6/6/2024  3.0.2 Added ability to modify VM Size and VM OS types
     3/15/2024 3.0.1 Improved test for outbound connectivity (to deploy a test load balancer)
@@ -45,9 +46,9 @@ param (
     [string]
     $subscriptionId,
 
-    [Parameter(Mandatory = $true, HelpMessage = "Enter CBS Model (V10MUR1, V20MUR1, V20MP2R2)")]
+    [Parameter(Mandatory = $true, HelpMessage = "Enter CBS Model (V10MUR1, V20MUR1, V10MP2R2, V20MP2R2)")]
     [ValidateNotNullOrEmpty()]
-    [ValidateSet("V10MUR1", "V20MUR1", "V20MP2R2")]
+    [ValidateSet("V10MUR1", "V20MUR1", "V10MP2R2","V20MP2R2")]
     [string]
     $cbsModel,
 
@@ -89,35 +90,80 @@ else {
 }
 
 
-if ($cbsModel -eq "V20MP2R2") {
+if ($cbsModel -eq "V10MP2r2" -or $cbsModel -eq "V20MP2R2") {
     $supportedRegions =
-    "centralus", "eastus", "eastus2",
-    "southcentralus", "westus3", "westus2",
-    "canadacentral", "northeurope", "westeurope",
-    "uksouth", "francecentral", "switzerlandnorth",
-    "swedencentral", "southeastasia", "japaneast",
-    "australiaeast", "koreacentral" , "brazilsouth",
-    "uaenorth", "centralindia", "southafricanorth",
-    "norwayeast", "eastasia", "israelcentral"
+    "australiaeast",
+    "brazilsouth",
+    "canadacentral",
+    "centralindia",
+    "centralus",
+    "eastasia",
+    "eastus",
+    "eastus2",
+    "francecentral",
+    "germanywestcentral",
+    "israelcentral",
+    "italynorth",
+    "japaneast",
+    "koreacentral",
+    "mexicocentral",
+    "northeurope",
+    "norwayeast",
+    "polandcentral",
+    "southafricanorth",
+    "southcentralus",
+    "southeastasia",
+    "spaincentral",
+    "swedencentral",
+    "switzerlandnorth"
+    "uaenorth",
+    "uksouth",
+    "westeurope",
+    "westus2",
+    "westus3"
 }
 elseif ($cbsModel -eq "V10MUR1" -or $cbsModel -eq "V20MUR1") {
     $supportedRegions =
-    "centralus", "eastus", "eastus2",
-    "southcentralus", "northcentralus", "westus3",
-    "westus2", "westus", "northeurope",
-    "westeurope", "uksouth", "francecentral",
-    "switzerlandnorth", "swedencentral", "southeastasia",
-    "germanywestcentral", "japaneast", "australiaeast",
-    "koreacentral" , "brazilsouth", "uaenorth",
-    "centralindia", "southafricanorth", "qatarcentral",
-    "eastasia", "australiacentral", "koreasouth"
+    "australiacentral",
+    "australiaeast",
+    "brazilsouth",
+    "brazilsoutheast",
+    "canadacentral",
+    "canadaeast",
+    "centralindia",
+    "centralus",
+    "eastasia",
+    "eastus",
+    "eastus2",
+    "francecentral",
+    "germanywestcentral",
+    "italynorth",
+    "japaneast",
+    "koreacentral",
+    "koreasouth",
+    "northcentralus",
+    "northeurope"
+    "polandcentral",
+    "qatarcentral",
+    "southafricanorth",
+    "southcentralus",
+    "southeastasia",
+    "swedencentral",
+    "switzerlandnorth",
+    "uaenorth",
+    "uksouth",
+    "ukwest",
+    "westeurope",
+    "westus",
+    "westus2",
+    "westus3"
 }
 else {
     Write-Error "Unknown CBS Model selected. Please select one of the following: V10MUR1, V20MUR1, V20MP2R2";
     Exit
 }
 
-$CLI_VERSION = "3.0.3"
+$CLI_VERSION = "3.0.4"
 
 Write-Host -ForegroundColor DarkRed -BackgroundColor Black @"
  _____                   _____ _                              
@@ -144,7 +190,6 @@ try {
     Select-AzSubscription -SubscriptionId $subscriptionId -WarningAction silentlyContinue | Out-Null
 
     $PSStyle.Progress.View = 'Classic'
-    
     $endpointsToTest =
     "rest.cloud-support.purestorage.com",
     "ra.cloud-support.purestorage.com",

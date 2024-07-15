@@ -1,0 +1,17 @@
+# information about newly created monitoring infrastructure
+monitoringResourcesSubscriptionId="<<SUBSCRIPTION ID WHERE MONITORING INFRA WILL BE CREATED>>"
+monitoringResourcesRgName="<<RESOURCE GROUP NAME>>"
+monitoringResourcesLocation="<<REGION WHERE MONITORING INFRA WILL BE CREATED>>"
+monitoringResourcesVnetName="<<VNET WHERE PRIVATE ENDPOINT AND MONITORING FUNCAPP WILL COMMUNICATE>>"
+
+# information about existing CBS array
+cbsSubscriptionId="<<SUBSCRIPTION ID WHERE CBS IS DEPLOYED IN>>"
+cbsManagedRgName="<<NAME OF CBS MANAGED RESOURCE GROUP>>"
+cbsLocation="<<REGION WHERE CBS IS DEPLOYED IN>>"
+cbsName="<<NAME OF CBS MANAGED APP>>"
+cbsLoadBalancerName="<<NAME OF CBS LOADBALANCER INSIDE MANAGED RESOURCE GROUP, e.g. mycbs-lb-internal>>"
+cbsVnetName="<<NAME OF VNET WHERE CBS IS DEPLOYED IN>>"
+cbsVnetLbSubnet="<<NAME OF THE MANAGEMENT SUBNET IN VNET>>"
+
+# api key for CBS REST API with reader permissions
+cbsApiKey="<<YOUR API KEY>>"

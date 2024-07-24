@@ -1,0 +1,6 @@
+project: my-project
+permission_code: 123456
+createdby: king-emmett
+location: us-west-2
+environment: PROD
+team: cbsdev

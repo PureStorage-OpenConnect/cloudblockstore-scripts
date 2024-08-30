@@ -413,7 +413,7 @@ try {
     ####################
     Write-Progress "Checking IAM Role" -PercentComplete 0
     $currentSignInName = (Get-AzContext).Account.Id
-    $listOfAssignedRoles =Get-AzRoleAssignment -SignInName dstamen@purestorage.com -ExpandPrincipalGroups | Where-Object Scope -EQ "/subscriptions/$subscriptionId"
+    $listOfAssignedRoles =Get-AzRoleAssignment -SignInName $currentSignInName -ExpandPrincipalGroups | Where-Object Scope -EQ "/subscriptions/$subscriptionId"
     $collections = $listOfAssignedRoles.RoleDefinitionName
     if ($listOfAssignedRoles) {
         if ($collections -like "Contributor" -or $collections -like "Owner" -or $collections -like "Managed Application Contributor Role") {

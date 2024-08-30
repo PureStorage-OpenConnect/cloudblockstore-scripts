@@ -51,6 +51,7 @@ This script will validate and verify the following:
 
 CHANGELOG
 
+- 8/30/2024 3.0.5 Bug Fixes for V10MP2R2
 - 7/15/2024 3.0.4 Updated Region Support, V10MP2R2
 - 7/11/2024 3.0.3 Added Microsoft.Storage Endpoint, Fixed naming of the LB
 - 6/6/2024  3.0.2 Added ability to modify VM Size and VM OS types

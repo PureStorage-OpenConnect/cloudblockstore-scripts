@@ -1,6 +1,6 @@
 <#
     paz-checklist.ps1 -
-    Version:        3.0.4
+    Version:        3.0.5
     Author:         Vaclav Jirovsky, Adam Mazouz, David Stamen @ Pure Storage
 .SYNOPSIS
     Checking if the prerequisites required for deploying Cloud Block Store are met before create the array on Azure.
@@ -12,7 +12,7 @@
     - Check if the Signed In User has the required Azure Role Assignment.
 .INPUTS
     - Azure Subscription Id.
-    - Pure Cloud Block Store Model (V20MUR1, V10MUR1, V20MP2R2).
+    - Pure Cloud Block Store Model (V20MUR1, V10MUR1, V10MP2R2, V20MP2R2).
     - Azure Virtual Network, where CBS subnets are located.
     - Azure Subnet, designated for CBS System subnet.
     - (optional) Tags to be assigned for a temporary VM created for connectivity test
@@ -24,6 +24,7 @@
     Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first
         Connect-AzAccount
 .CHANGELOG
+    8/30/2024 3.0.5 Bug Fixes for V10MP2R2
     7/15/2024 3.0.4 Updated Region Support, V10MP2R2
     7/11/2024 3.0.3 Added Microsoft.Storage Endpoint, Fixed naming of the LB
     6/6/2024  3.0.2 Added ability to modify VM Size and VM OS types
@@ -90,7 +91,7 @@ else {
 }
 
 
-if ($cbsModel -eq "V10MP2r2" -or $cbsModel -eq "V20MP2R2") {
+if ($cbsModel -eq "V10MP2R2" -or $cbsModel -eq "V20MP2R2") {
     $supportedRegions =
     "australiaeast",
     "brazilsouth",
@@ -115,7 +116,7 @@ if ($cbsModel -eq "V10MP2r2" -or $cbsModel -eq "V20MP2R2") {
     "southeastasia",
     "spaincentral",
     "swedencentral",
-    "switzerlandnorth"
+    "switzerlandnorth",
     "uaenorth",
     "uksouth",
     "westeurope",
@@ -159,11 +160,11 @@ elseif ($cbsModel -eq "V10MUR1" -or $cbsModel -eq "V20MUR1") {
     "westus3"
 }
 else {
-    Write-Error "Unknown CBS Model selected. Please select one of the following: V10MUR1, V20MUR1, V20MP2R2";
+    Write-Error "Unknown CBS Model selected. Please select one of the following: V10MUR1, V20MUR1, V10MP2R2, V20MP2R2";
     Exit
 }
 
-$CLI_VERSION = "3.0.4"
+$CLI_VERSION = "3.0.5"
 
 Write-Host -ForegroundColor DarkRed -BackgroundColor Black @"
  _____                   _____ _                              
@@ -274,6 +275,7 @@ try {
     $cbsVCPU = switch ($cbsModel) {
         "V10MUR1" { 32 }
         "V20MUR1" { 64 }
+        "V10MP2R2" { 16 }
         "V20MP2R2" { 32 }
         Default { Write-Host "Invalid CBS Model selected."; exit }
     }
@@ -281,6 +283,7 @@ try {
     $vmSize = switch ($cbsModel) {
         "V10MUR1" { "Standard_D32s_v3" }
         "V20MUR1" { "Standard_D64s_v3" }
+        "V10MP2R2" { "Standard_E16bds_v5" }
         "V20MP2R2" { "Standard_E32bds_v5" }
         Default { Write-Host "Invalid CBS Model selected."; exit }
     }
@@ -288,6 +291,7 @@ try {
     $diskType = switch ($cbsModel) {
         "V10MUR1" { "UltraSSD_LRS" }
         "V20MUR1" { "UltraSSD_LRS" }
+        "V10MP2R2" { "PremiumV2_LRS" }
         "V20MP2R2" { "PremiumV2_LRS" }
         Default { Write-Host "Invalid CBS Model selected."; exit }
     }
@@ -409,7 +413,7 @@ try {
     ####################
     Write-Progress "Checking IAM Role" -PercentComplete 0
     $currentSignInName = (Get-AzContext).Account.Id
-    $listOfAssignedRoles = Get-AzRoleAssignment -Scope /subscriptions/$subscriptionId | Where-Object -Property SignInName -EQ $currentSignInName
+    $listOfAssignedRoles =Get-AzRoleAssignment -SignInName dstamen@purestorage.com -ExpandPrincipalGroups | Where-Object Scope -EQ "/subscriptions/$subscriptionId"
     $collections = $listOfAssignedRoles.RoleDefinitionName
     if ($listOfAssignedRoles) {
         if ($collections -like "Contributor" -or $collections -like "Owner" -or $collections -like "Managed Application Contributor Role") {

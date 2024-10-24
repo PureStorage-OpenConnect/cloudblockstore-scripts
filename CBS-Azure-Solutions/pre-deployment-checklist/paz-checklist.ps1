@@ -1,6 +1,6 @@
 <#
     paz-checklist.ps1 -
-    Version:        3.0.5
+    Version:        3.0.6
     Author:         Vaclav Jirovsky, Adam Mazouz, David Stamen @ Pure Storage
 .SYNOPSIS
     Checking if the prerequisites required for deploying Cloud Block Store are met before create the array on Azure.
@@ -24,6 +24,7 @@
     Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first
         Connect-AzAccount
 .CHANGELOG
+    10/24/24  3.0.6 Disable Storage Account Creation for Boot Diagnostics
     8/30/2024 3.0.5 Bug Fixes for V10MP2R2
     7/15/2024 3.0.4 Updated Region Support, V10MP2R2
     7/11/2024 3.0.3 Added Microsoft.Storage Endpoint, Fixed naming of the LB
@@ -161,7 +162,7 @@ if ($cbsModel -eq 'V10MP2R2' -or $cbsModel -eq 'V20MP2R2') {
   Exit
 }
 
-$CLI_VERSION = '3.0.5'
+$CLI_VERSION = '3.0.6'
 
 Write-Host -ForegroundColor DarkRed -BackgroundColor Black @"
  _____                   _____ _
@@ -462,6 +463,7 @@ try {
     $VirtualMachine = New-AzVMConfig -VMName $tempVMName -VMSize $tempVmSize -Tags $tempVmTags
     $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Linux -ComputerName testvm -Credential $psCred
     $VirtualMachine = Add-AzVMNetworkInterface -VM $VirtualMachine -Id $NIC.Id
+    $VirtualMachine = Set-AzVMBootDiagnostic -VM $VirtualMachine -Disable
   } catch {
     Write-Host 'An error occurred:'
     Write-Host $_

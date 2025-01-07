@@ -1,6 +1,6 @@
 <#
     paz-checklist.ps1 -
-    Version:        3.0.6
+    Version:        3.0.7
     Author:         Vaclav Jirovsky, Adam Mazouz, David Stamen @ Pure Storage
 .SYNOPSIS
     Checking if the prerequisites required for deploying Cloud Block Store are met before create the array on Azure.
@@ -24,6 +24,7 @@
     Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first
         Connect-AzAccount
 .CHANGELOG
+    01/07/25  3.0.7 From v6.8.2 is not used CosmosDB anymore
     10/24/24  3.0.6 Disable Storage Account Creation for Boot Diagnostics
     8/30/2024 3.0.5 Bug Fixes for V10MP2R2
     7/15/2024 3.0.4 Updated Region Support, V10MP2R2
@@ -351,22 +352,8 @@ try {
   Write-Progress 'Checking Service Endpoints' -PercentComplete 0
 
   $ServiceEndpoints = (Get-AzVirtualNetworkSubnetConfig -Name $vnetSystemSubnetName -VirtualNetwork $PSvnet).ServiceEndpoints
-  if ($ServiceEndpoints.Service -eq 'Microsoft.AzureCosmosDB') {
 
-    $finalReportOutput += [pscustomobject]@{
-      TestName = 'Azure CosmosDB Service Endpoint'
-      Result   = 'OK'
-      Details  = "The service endpoint for CosmosDB is attached to the System Subnet '$vnetSystemSubnetName'"
-    };
-  } else {
-    $finalReportOutput += [pscustomobject]@{
-      TestName = 'Azure CosmosDB Service Endpoint'
-      Result   = 'FAILED'
-      Details  = "The service endpoint for CosmosDB is NOT attached to the System Subnet '$vnetSystemSubnetName'"
-    };
-  }
-
-  Write-Progress 'Checking Service Endpoints' -PercentComplete 40
+  Write-Progress 'Checking Service Endpoints' -PercentComplete 33
 
   if ($ServiceEndpoints.Service -eq 'Microsoft.KeyVault') {
     $finalReportOutput += [pscustomobject]@{

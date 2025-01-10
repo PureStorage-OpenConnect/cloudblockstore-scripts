@@ -20,10 +20,10 @@ By default the VM will be deployed with an Ubuntu OS and the Standard_B1s vm siz
 wget https://raw.githubusercontent.com/PureStorage-OpenConnect/cloudblockstore-scripts/main/CBS-Azure-Solutions/pre-deployment-checklist/paz-checklist.ps1
 ```
 
-1. Execute the script
+1. Replace placeholders (subscription ID, vNET name,...) in the following command example and execute the script
 
 ```powershell
-./paz-checklist.ps1 -subscriptionId "SUBSCRIPTIONID" -cbsModel "V20MP2R2" -cbsVNETName "CBSVNETNAME" -vnetSystemSubnetName "SYSTEMSUBNETNAME"
+./paz-checklist.ps1 -subscriptionId "<<SUBSCRIPTION-ID>>" -cbsModel "V20MP2R2" -cbsVNETName "<<CBS-VNET-NAME>>" -vnetSystemSubnetName "<<SYSTEM-SUBNET-NAME>>"
 ```
 
 ### Option 2 - Local machine
@@ -35,10 +35,10 @@ wget https://raw.githubusercontent.com/PureStorage-OpenConnect/cloudblockstore-s
 Connect-AzAccount
 ```
 
-1. Execute the script
+1. Replace placeholders (subscription ID, vNET name,...) in the following command example and execute the script
 
 ```powershell
-./paz-checklist.ps1 -subscriptionId "SUBSCRIPTIONID" -cbsModel "V20MP2R2" -cbsVNETName "CBSVNETNAME" -vnetSystemSubnetName "SYSTEMSUBNETNAME"
+./paz-checklist.ps1 -subscriptionId "<<SUBSCRIPTION-ID>>" -cbsModel "V20MP2R2" -cbsVNETName "<<CBS-VNET-NAME>>" -vnetSystemSubnetName "<<SYSTEM-SUBNET-NAME>>"
 ```
 
 This script will validate and verify the following:

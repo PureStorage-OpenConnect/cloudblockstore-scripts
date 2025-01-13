@@ -1,6 +1,7 @@
 #This script works on increasing the number of iSCSi sessions for Windows hosts connected to Cloud Block Store and running on Azure VM or AWS EC2 instances.
-#Run this script on the designated host and assign from 2 to 32 iSCSI sessions.
-#Follow the CBS deployment guide to get the required entries. https://support.purestorage.com/Pure_Cloud_Block_Store/Cloud_Block_Store_Deployment_and_Configuration_Guide_for_Azure
+#Run this script on the designated host and assign from 2 to 16 iSCSI sessions per controller.
+#Follow the below KB to understand how many sessions should be set
+#https://support.purestorage.com/bundle/m_cbs_for_azure/page/Pure_Cloud_Block_Store/CBS_for_Azure/topics/topic/r_number_of_iscsi_sessions_vs_block_size.html
 
 $numberOfSessions= Read-Host -Prompt 'Enter number of iSCSi session for each controller'
 

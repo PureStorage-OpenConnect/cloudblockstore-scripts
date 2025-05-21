@@ -1,0 +1,26 @@
+resources
+| where type =~ 'microsoft.compute/disks'
+| extend vmId = tostring(managedBy)
+| extend VmName = tostring(split(vmId, '/virtualMachines/')[1])
+| join kind=leftouter (
+    resources
+    | where type =~ 'microsoft.network/networkinterfaces'
+    | extend attachedVmId = tostring(properties.virtualMachine.id)
+    | where isnotempty(attachedVmId)
+    | extend vnetId = tostring(properties.ipConfigurations[0].properties.subnet.id)
+    | extend vnetName = tostring(split(vnetId, '/')[8])
+    | project attachedVmId, vnetName
+) on $left.vmId == $right.attachedVmId
+| extend azureRegion = location
+| extend azureZone = strcat_array(zones, '"')
+| extend diskName = name
+| extend diskType = sku.name
+| extend osDisk = properties.osType
+| extend diskSize = tostring(properties.diskSizeGB)
+| extend diskState = tostring(properties.diskState)
+| extend diskBW = tostring(properties.diskMBpsReadWrite)
+| extend diskIOPS = tostring(properties.diskIOPSReadWrite)
+| extend createdDateTime = properties.timeCreated
+| where isnull(properties.osType)
+| summarize arg_min(diskName, *) by diskName
+| project subscriptionId, resourceGroup, VmName, diskName, diskType, osDisk, diskSize, diskBW, diskIOPS, diskState, createdDateTime, azureRegion, azureZone, vnetName

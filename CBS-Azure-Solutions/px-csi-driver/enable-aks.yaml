@@ -1,0 +1,125 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: px-multipath-config
+  namespace: kube-system
+data:
+  multipath.conf: |
+    blacklist {
+            devnode "^pxd[0-9]*"
+            devnode "^pxd*"
+            device {
+              vendor "VMware"
+              product "Virtual disk"
+            }
+    }
+
+    defaults {
+        polling_interval 10
+        find_multipaths yes    
+    }
+
+    devices {
+        device {
+            vendor                      "NVME"
+            product                     "Pure Storage FlashArray"
+            path_selector               "queue-length 0"
+            path_grouping_policy        group_by_prio
+            prio                        ana
+            failback                    immediate
+            fast_io_fail_tmo            10
+            user_friendly_names         no
+            no_path_retry               0
+            features                    0
+            dev_loss_tmo                60
+        }
+        device {
+            vendor                   "PURE"
+            product                  "FlashArray"
+            path_selector            "service-time 0"
+            hardware_handler         "1 alua"
+            path_grouping_policy     group_by_prio
+            prio                     alua
+            failback                 immediate
+            path_checker             tur
+            fast_io_fail_tmo         10
+            user_friendly_names      no
+            no_path_retry            0
+            features                 0
+            dev_loss_tmo             600
+        }
+    }
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: px-node-init
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: px-node-init
+  template:
+    metadata:
+      labels:
+        app: px-node-init
+    spec:
+      hostPID: true
+      tolerations:
+        - operator: "Exists"
+      containers:
+        - name: px-init
+          image: debian:bullseye-slim
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: host
+              mountPath: /host
+            - name: host-var
+              mountPath: /host/var/init-mark
+            - name: multipath-conf
+              mountPath: /tmp/multipath
+          command:
+            - /bin/bash
+            - -c
+            - |
+              if [ ! -f /host/var/init-mark/px-multipath-done ]; then
+                echo "Setting up multipath..."
+                cp /tmp/multipath/multipath.conf /host/etc/multipath.conf
+                if [ -f /host/etc/multipath.conf ]; then
+                  echo "[OK] Multipath configuration copied"
+                else
+                  echo "[ERROR] Failed to copy multipath configuration"
+                  exit 1
+                fi
+                if chroot /host ln -sf /lib/systemd/system/iscsid.service /etc/systemd/system/multi-user.target.wants/iscsid.service && chroot /host ln -sf /lib/systemd/system/multipathd.service /etc/systemd/system/multi-user.target.wants/multipathd.service; then
+
+                  echo "[OK] Services enabled via symlinks"
+                  touch /host/var/init-mark/px-multipath-done
+                  echo "[OK] Initialization complete. Attempting reboot..."
+
+                  chroot /host /bin/sh -c 'systemctl reboot && echo "[OK] Reboot triggered"]'
+                  sleep 6000  #for debugging purposes
+                else
+                  echo "[ERROR] Failed to create service symlinks"
+                  sleep 3600
+                  exit 1
+                fi
+              else
+                echo "Already initialized, sleeping..."
+                sleep 3600
+              fi
+      volumes:
+        - name: host
+          hostPath:
+            path: /
+            type: Directory
+        - name: host-var
+          hostPath:
+            path: /var/init-mark
+            type: DirectoryOrCreate
+        - name: multipath-conf
+          configMap:
+            name: px-multipath-config

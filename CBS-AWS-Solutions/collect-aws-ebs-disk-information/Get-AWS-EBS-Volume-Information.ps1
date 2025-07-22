@@ -1,11 +1,14 @@
 <#
     Get-AWS-EBS-Volume-Information.ps1
-    Version:        1.0
+    Version:        1.1
     Authors:        David Stamen @ Pure Storage
+    Edited:         Mike Carpendale @ Pure Storage
 #>
 
 # Get all regions
-$Regions = (Get-AWSRegion).Region
+$Regions = (Get-AWSRegion).Region   #comment this line if you want target specific regions
+# Define specific regions you may want to target
+#$Regions = @("ap-southeast-1", "us-west-2")    #uncomment this line if you dont want to run this across all regions
 
 # Get all Volumes in each region
 $Volumes = foreach ($Region in $Regions) {
@@ -23,7 +26,7 @@ $VolumeDetailsOutArray = @()
 #The computer loop you already have
 foreach ($Volume in $Volumes) {
         #Construct an object for the Collection
-        $myobj = "" | Select-Object "Region","AvailabilityZone","VolumeType","Size","Iops","VolumeId","Name","Device","PlatformDetails","InstanceId","State","InstanceState","InstanceType"
+        $myobj = "" | Select-Object "Region","AvailabilityZone","VolumeType","Size","Iops","Throughput","VolumeId","Name","Device","PlatformDetails","InstanceId","State","InstanceState","InstanceType","Tags"
 
         #Fill the object with the values mentioned above
         if ($Volume.State -eq "available") {
@@ -33,8 +36,11 @@ foreach ($Volume in $Volumes) {
             $myobj.Region = $Volume.AvailabilityZone.Substring(0,$Volume.AvailabilityZone.Length-1)
             $myobj.AvailabilityZone = $Volume.AvailabilityZone
             $myobj.Iops = $Volume.Iops
+            $myobj.Throughput = $Volume.Throughput  # Add this line to get Throughput
             $myobj.Size = $Volume.Size
             $myobj.Name = ($Volume.Tags | ? {$_.Key -EQ "Name"}).Value | Out-String -Stream
+            # Add Tags to the object as a single string (key-value pairs)
+            $myobj.Tags = ($Volume.Tags | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join "; "
 
             #Add the objects to the Volume Out Arrays
             $VolumeDetailsOutArray += $myobj
@@ -59,8 +65,10 @@ foreach ($Volume in $Volumes) {
                 $myobj.Region = $Volume.AvailabilityZone.Substring(0,$Volume.AvailabilityZone.Length-1)
                 $myobj.AvailabilityZone = $Volume.AvailabilityZone
                 $myobj.Iops = $Volume.Iops
+                $myobj.Throughput = $Volume.Throughput  # Add this line to get Throughput
                 $myobj.Size = $Volume.Size
-                $myobj.Name = ($Volume.Tags | ? {$_.Key -EQ "Name"}).Value | Out-String -Stream
+                # Add Tags to the object as a single string (key-value pairs)
+                $myobj.Tags = ($Volume.Tags | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join "; "
 
                 #Add the objects to the Volume Out Arrays
                 $VolumeDetailsOutArray += $myobj

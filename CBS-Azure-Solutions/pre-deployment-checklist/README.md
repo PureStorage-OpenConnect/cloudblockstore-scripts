@@ -51,10 +51,13 @@ This script will validate and verify the following:
 
 CHANGELOG
 
+- 08/20/25  3.0.8  Updated for Better Error Handling and Update fo VM Images
+- 01/07/25  3.0.7 From v6.8.2 is not used CosmosDB anymore
+- 10/24/24  3.0.6 Disable Storage Account Creation for Boot Diagnostics
 - 8/30/2024 3.0.5 Bug Fixes for V10MP2R2
 - 7/15/2024 3.0.4 Updated Region Support, V10MP2R2
 - 7/11/2024 3.0.3 Added Microsoft.Storage Endpoint, Fixed naming of the LB
 - 6/6/2024  3.0.2 Added ability to modify VM Size and VM OS types
 - 3/15/2024 3.0.1 Improved test for outbound connectivity (to deploy a test load balancer)
 - 3/12/2024 3.0.0 Script refactored, to provide a full report of the readiness of the environment for CBS deployment
-- 26/1/2024 2.0.1 Adding V20P2R2 and PremiumV2 SSD support to the script
+- 1/26/2024 2.0.1 Adding V20MP2R2 and PremiumV2 SSD support to the script

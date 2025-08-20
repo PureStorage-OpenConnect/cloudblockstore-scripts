@@ -1,6 +1,6 @@
 <#
     paz-checklist.ps1 -
-    Version:        3.0.7
+    Version:        3.0.8
     Author:         Vaclav Jirovsky, Adam Mazouz, David Stamen @ Pure Storage
 .SYNOPSIS
     Checking if the prerequisites required for deploying Cloud Block Store are met before create the array on Azure.
@@ -24,6 +24,7 @@
     Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first
         Connect-AzAccount
 .CHANGELOG
+    08/20/25  3.0.8  Updated for Better Error Handling and Update fo VM Images
     01/07/25  3.0.7 From v6.8.2 is not used CosmosDB anymore
     10/24/24  3.0.6 Disable Storage Account Creation for Boot Diagnostics
     8/30/2024 3.0.5 Bug Fixes for V10MP2R2
@@ -68,7 +69,7 @@ param (
   [Parameter(Mandatory = $false, HelpMessage = 'Enter name for temporary VM created for connectivity tests')]
   [ValidateNotNullOrEmpty()]
   [string]
-  $tempVmName = 'CBS_PreCheck_TempVM',
+  $tempVmName = 'CBS-TestVM',
 
   [Parameter(Mandatory = $false, HelpMessage = "List of tags to be assigned to the temporary VM created for connectivity tests, required by your Azure landing zone (e.g. @{'tag1'='value1';'tag2'='value2'})")]
   [hashtable]
@@ -163,7 +164,7 @@ if ($cbsModel -eq 'V10MP2R2' -or $cbsModel -eq 'V20MP2R2') {
   Exit
 }
 
-$CLI_VERSION = '3.0.6'
+$CLI_VERSION = '3.0.8'
 
 Write-Host -ForegroundColor DarkRed -BackgroundColor Black @"
  _____                   _____ _
@@ -178,7 +179,7 @@ Write-Host -ForegroundColor DarkRed -BackgroundColor Black @"
 Write-Host  @"
 ------------------------------------------------------------
     Pure Cloud Block Store - Pre-Deployment Check Report
-                (c) 2024 Pure Storage
+                (c) 2025 Pure Storage
                         v$CLI_VERSION
 ------------------------------------------------------------
 "@
@@ -429,7 +430,7 @@ try {
 
   Write-Progress 'Creating a temporary test loadbalancer in System subnet' -PercentComplete 50
 
-  $loadBalancer = New-AzLoadBalancer -ResourceGroupName $rg -Name "$TempVMName-LB" -Location $region -FrontendIpConfiguration $frontendIP -LoadBalancingRule $lbRule -BackendAddressPool $backendPool -Sku 'Standard'
+  $loadBalancer = New-AzLoadBalancer -ResourceGroupName $rg -Name "$TempVMName-LB" -Location $region -FrontendIpConfiguration $frontendIP -LoadBalancingRule $lbRule -BackendAddressPool $backendPool -Sku 'Standard' -Force -Confirm:$false
 
   $bepool = $loadBalancer.BackendAddressPools[0]
   Write-Progress 'Creating a temporary test loadbalancer in System subnet' -PercentComplete 100
@@ -448,7 +449,7 @@ try {
   try {
     ## Set the VM Size and Type
     $VirtualMachine = New-AzVMConfig -VMName $tempVMName -VMSize $tempVmSize -Tags $tempVmTags
-    $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Linux -ComputerName testvm -Credential $psCred
+    $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Linux -ComputerName $tempVMName -Credential $psCred
     $VirtualMachine = Add-AzVMNetworkInterface -VM $VirtualMachine -Id $NIC.Id
     $VirtualMachine = Set-AzVMBootDiagnostic -VM $VirtualMachine -Disable
   } catch {
@@ -459,14 +460,22 @@ try {
   try {
     ## Set the VM Source Image
     if ($tempVmOS -eq 'Ubuntu') {
-      $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName 'Canonical' -Offer 'UbuntuServer' -Skus '18_04-lts-gen2' -Version 'latest'
+      #get-azvmimage -Location 'EastUS' -PublisherName 'Canonical' -Offer 'ubuntu-24_04-lts' -Skus server
+      $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName 'Canonical' -Offer 'ubuntu-24_04-lts' -Skus 'server' -Version 'latest'
     } elseif ($tempVmOS -eq 'Suse') {
-      $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName 'suse' -Offer 'sles-12-sp5-basic' -Skus 'gen2' -Version 'latest'
+      #get-azvmimage -Location 'EastUS' -PublisherName 'suse' -Offer 'sles-15-sp5-basic' -Skus 'gen2' -Version latest
+      $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName 'suse' -Offer 'sles-15-sp5' -Skus 'gen2' -Version 'latest'
     } elseif ($tempVmOS -eq 'Redhat') {
-      $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName 'redhat' -Offer 'RHEL' -Skus '87-gen2' -Version 'latest'
+      #get-azvmimage -Location 'EastUS' -PublisherName 'redHat' -Offer 'RHEL' -Skus '87-gen2' -Version latest
+      $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName 'redhat' -Offer 'RHEL' -Skus '9-lvm-gen2' -Version 'latest'
     }
+    #if (-not $VirtualMachine.StorageProfile.ImageReference) {
+    #    Write-Error "VM Image not found for OS type '$tempVmOS'. Please check the Publisher, Offer, and SKU details."
+    #    exit 1 # Stop the script
+    #}
 
-    New-AzVM -ResourceGroupName $rg -Location $region -VM $VirtualMachine -WarningAction silentlyContinue | Out-Null
+
+    New-AzVM -ResourceGroupName $rg -Location $region -VM $VirtualMachine -WarningAction Stop | Out-Null
     Set-AzVMExtension -ResourceGroupName $rg -Location $region -VMName $tempVMName -Name 'NetworkWatcherAgentLinux' -ExtensionType 'NetworkWatcherAgentLinux' -Publisher 'Microsoft.Azure.NetworkWatcher' -TypeHandlerVersion '1.4' | Out-Null
     # 2/ Wait for the VM to be created
     ####################

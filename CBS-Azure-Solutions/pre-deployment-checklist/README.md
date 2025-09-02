@@ -45,12 +45,14 @@ This script will validate and verify the following:
 
 - Check if the region where VNET is created is supported for CBS deployments.
 - Check if the region has enough DSv3 or EbdsV5 Family vCPU to deploy Cloud Block Store.
+- Check if there are any region or zonal restrictions on the instance.
 - Check if the PremiumV2 or Ultra Disks are available and in which Availability Zone.
 - Check if the System Subnet has outbound internet access to Pure1 cloud.
 - Check if the Signed In User has the required Azure Role Assignment.
 
 CHANGELOG
 
+- 09/02/25  3.0.9 Updated to check for Azure VM Regional and Zonal Restrictions
 - 08/20/25  3.0.8  Updated for Better Error Handling and Update fo VM Images
 - 01/07/25  3.0.7 From v6.8.2 is not used CosmosDB anymore
 - 10/24/24  3.0.6 Disable Storage Account Creation for Boot Diagnostics

@@ -1,6 +1,6 @@
 <#
     paz-checklist.ps1 -
-    Version:        3.0.8
+    Version:        3.0.9
     Author:         Vaclav Jirovsky, Adam Mazouz, David Stamen @ Pure Storage
 .SYNOPSIS
     Checking if the prerequisites required for deploying Cloud Block Store are met before create the array on Azure.
@@ -24,7 +24,8 @@
     Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first
         Connect-AzAccount
 .CHANGELOG
-    08/20/25  3.0.8  Updated for Better Error Handling and Update fo VM Images
+    09/02/25  3.0.9 Updated to check for Azure VM Regional and Zonal Restrictions
+    08/20/25  3.0.8 Updated for Better Error Handling and Update fo VM Images
     01/07/25  3.0.7 From v6.8.2 is not used CosmosDB anymore
     10/24/24  3.0.6 Disable Storage Account Creation for Boot Diagnostics
     8/30/2024 3.0.5 Bug Fixes for V10MP2R2
@@ -33,7 +34,7 @@
     6/6/2024  3.0.2 Added ability to modify VM Size and VM OS types
     3/15/2024 3.0.1 Improved test for outbound connectivity (to deploy a test load balancer)
     3/12/2024 3.0.0 Script refactored, to provide a full report of the readiness of the environment for CBS deployment
-    26/1/2024 2.0.1 Adding V20MP2R2 and PremiumV2 SSD support to the script
+    1/26/2024 2.0.1 Adding V20MP2R2 and PremiumV2 SSD support to the script
 #>
 <#
 .DISCLAIMER
@@ -164,7 +165,7 @@ if ($cbsModel -eq 'V10MP2R2' -or $cbsModel -eq 'V20MP2R2') {
   Exit
 }
 
-$CLI_VERSION = '3.0.8'
+$CLI_VERSION = '3.0.9'
 
 Write-Host -ForegroundColor DarkRed -BackgroundColor Black @"
  _____                   _____ _
@@ -294,8 +295,12 @@ try {
     'V20MP2R2' { 'PremiumV2_LRS' }
     Default { Write-Host 'Invalid CBS Model selected.'; exit }
   }
+  ##################################
+  ##  Azure VM Stuff Availability ##
+  ##################################
 
   $VMFamily = (Get-AzComputeResourceSku -Location $region | Where-Object ResourceType -EQ 'virtualMachines' | Select-Object Name, Family | Where-Object Name -EQ $vmSize | Select-Object -Property Family).Family
+
 
   $currentLimit = Get-AzVMUsage -Location $region | Where-Object { $_.Name.Value -eq $VMFamily } | Select-Object -ExpandProperty CurrentValue
   Write-Progress 'Checking vCPU limits' -PercentComplete 50
@@ -318,6 +323,26 @@ try {
     exit;
   }
   Write-Progress 'Checking vCPU limits' -PercentComplete 100
+
+  Write-Progress 'Checking VM Region/Zone Restrictions limits' -PercentComplete 0
+  Write-Progress 'Checking VM Region/Zone Restrictions limits' -PercentComplete 50
+  $VMRestrictions = Get-AzComputeResourceSku | Where-Object {$_.ResourceType -eq 'virtualMachines' -and $_.Name -eq $vmSize -and $_.Locations -eq $region}|Select-Object -ExpandProperty RestrictionInfo
+  if ($null -eq $VMRestrictions) {
+    $finalReportOutput += [pscustomobject]@{
+      TestName = 'VM Region/Zone Restrictions'
+      Result   = 'OK'
+      Details  = "There is currently no Region/Zone restriction for $vmSize in $region"
+    };
+  } else {
+    $finalReportOutput += [pscustomobject]@{
+      TestName = 'VM Region/Zone Restictions'
+      Result   = 'FAILED'
+      Details  = "There is currently a Region/Zone restriction for $vmSize. Restriction: $VMRestrictions"
+    };
+
+    exit;
+  }
+  Write-Progress 'Checking VM Region/Zone Restrictions limits' -PercentComplete 100
 
   ###################
   ## Backend Azure Disk Availability ##

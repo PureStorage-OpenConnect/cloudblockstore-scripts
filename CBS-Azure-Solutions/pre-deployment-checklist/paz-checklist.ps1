@@ -1,6 +1,6 @@
 <#
     paz-checklist.ps1 -
-    Version:        3.0.9
+    Version:        3.1.0
     Author:         Vaclav Jirovsky, Adam Mazouz, David Stamen @ Pure Storage
 .SYNOPSIS
     Checking if the prerequisites required for deploying Cloud Block Store are met before create the array on Azure.
@@ -12,7 +12,7 @@
     - Check if the Signed In User has the required Azure Role Assignment.
 .INPUTS
     - Azure Subscription Id.
-    - Pure Cloud Block Store Model (V20MUR1, V10MUR1, V10MP2R2, V20MP2R2).
+    - Pure Cloud Block Store Model (V20MUR1, V10MUR1, V10MP2R2, V20MP2R2, V50MP2R2).
     - Azure Virtual Network, where CBS subnets are located.
     - Azure Subnet, designated for CBS System subnet.
     - (optional) Tags to be assigned for a temporary VM created for connectivity test
@@ -24,6 +24,7 @@
     Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first
         Connect-AzAccount
 .CHANGELOG
+    09/18/25 3.1.0 Updated to add Support for V50MP2R2 Model
     09/02/25  3.0.9 Updated to check for Azure VM Regional and Zonal Restrictions
     08/20/25  3.0.8 Updated for Better Error Handling and Update fo VM Images
     01/07/25  3.0.7 From v6.8.2 is not used CosmosDB anymore
@@ -45,15 +46,14 @@ param (
   [Parameter(Mandatory = $true, HelpMessage = 'Enter the SubscriptionId where your Resource Group is located')]
   [ValidateNotNullOrEmpty()]
   [ValidateScript(
-    { $null -ne (Get-AzSubscription -SubscriptionId $_ -WarningAction silentlyContinue) },
-    ErrorMessage = 'Subscription  was not found in tenant {0} . Please verify that the subscription exists in this tenant.'
+    { $null -ne (Get-AzSubscription -SubscriptionId $_ -WarningAction silentlyContinue) }
   )]
   [string]
   $subscriptionId,
 
-  [Parameter(Mandatory = $true, HelpMessage = 'Enter CBS Model (V10MUR1, V20MUR1, V10MP2R2, V20MP2R2)')]
+  [Parameter(Mandatory = $true, HelpMessage = 'Enter CBS Model (V10MUR1, V20MUR1, V10MP2R2, V20MP2R2, V50MP2R2)')]
   [ValidateNotNullOrEmpty()]
-  [ValidateSet('V10MUR1', 'V20MUR1', 'V10MP2R2', 'V20MP2R2')]
+  [ValidateSet('V10MUR1', 'V20MUR1', 'V10MP2R2', 'V20MP2R2','V50MP2R2')]
   [string]
   $cbsModel,
 
@@ -92,7 +92,6 @@ if ($tempVmOS -in $AcceptableOS) {
   Write-Error 'Unknown VM Operating System selected. Please select one of the following: Ubuntu, Suse, Redhat';
   Exit
 }
-
 
 if ($cbsModel -eq 'V10MP2R2' -or $cbsModel -eq 'V20MP2R2') {
   $supportedRegions =
@@ -160,12 +159,19 @@ if ($cbsModel -eq 'V10MP2R2' -or $cbsModel -eq 'V20MP2R2') {
   'westus',
   'westus2',
   'westus3'
-} else {
+}
+elseif ($cbsModel -eq 'V50MP2R2') {
+  $supportedRegions =
+  'eastus2',
+  'centralus',
+  'eastus'
+}
+else {
   Write-Error 'Unknown CBS Model selected. Please select one of the following: V10MUR1, V20MUR1, V10MP2R2, V20MP2R2';
-  Exit
+  exit;
 }
 
-$CLI_VERSION = '3.0.9'
+$CLI_VERSION = '3.1.0'
 
 Write-Host -ForegroundColor DarkRed -BackgroundColor Black @"
  _____                   _____ _
@@ -213,7 +219,7 @@ try {
       Details  = "vNET '$cbsVNETName' WAS NOT found"
     };
 
-    Exit
+    exit;
   }
   Write-Progress 'Checking vNET presence' -PercentComplete 100
 
@@ -233,7 +239,7 @@ try {
       Result   = 'FAILED'
       Details  = "Subnet '$vnetSystemSubnetName' WAS NOT found"
     };
-    Exit
+    exit;
   }
 
   $finalReportOutput += [pscustomobject]@{
@@ -263,8 +269,8 @@ try {
       Result   = 'FAILED'
       Details  = "Region '$region' IS declared as NOT supported for deploying a $cbsModel"
     };
+      exit;
   }
-
   Write-Progress 'Checking region support' -PercentComplete 100
   Write-Progress 'Checking vCPU limits' -PercentComplete 0
 
@@ -277,6 +283,7 @@ try {
     'V20MUR1' { 128 }
     'V10MP2R2' { 32 }
     'V20MP2R2' { 64 }
+    'V50MP2R2' { 256 }
     Default { Write-Host 'Invalid CBS Model selected.'; exit }
   }
 
@@ -285,6 +292,7 @@ try {
     'V20MUR1' { 'Standard_D64s_v3' }
     'V10MP2R2' { 'Standard_E16bds_v5' }
     'V20MP2R2' { 'Standard_E32bds_v5' }
+    'V50MP2R2' { 'Standard_D128ds_v6' }
     Default { Write-Host 'Invalid CBS Model selected.'; exit }
   }
 
@@ -293,6 +301,8 @@ try {
     'V20MUR1' { 'UltraSSD_LRS' }
     'V10MP2R2' { 'PremiumV2_LRS' }
     'V20MP2R2' { 'PremiumV2_LRS' }
+    'V50MP2R2' { 'PremiumV2_LRS' }
+
     Default { Write-Host 'Invalid CBS Model selected.'; exit }
   }
   ##################################
@@ -319,7 +329,6 @@ try {
       Result   = 'FAILED'
       Details  = "There IS NOT enough $vmSize vCPUs for deploying a $cbsModel ($vCPUAfterDeploy after deployment, currently used $currentLimit, total limit $limit)"
     };
-
     exit;
   }
   Write-Progress 'Checking vCPU limits' -PercentComplete 100

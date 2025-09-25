@@ -440,25 +440,38 @@ $zones = Get-AzComputeResourceSku -Location $region | Where-Object {$_.ResourceT
   ## Azure IAM Roles ##
   ####################
   Write-Progress 'Checking IAM Role' -PercentComplete 0
-  $currentSignInName = (Get-AzContext).Account.Id
-  $listOfAssignedRoles = Get-AzRoleAssignment -SignInName $currentSignInName -ExpandPrincipalGroups | Where-Object Scope -EQ "/subscriptions/$subscriptionId"
-  $collections = $listOfAssignedRoles.RoleDefinitionName
-  if ($listOfAssignedRoles) {
-    if ($collections -like 'Contributor' -or $collections -like 'Owner' -or $collections -like 'Managed Application Contributor Role') {
-      $finalReportOutput += [pscustomobject]@{
-        TestName = 'Azure IAM Role'
-        Result   = 'OK'
-        Details  = 'Signed user has at least one of the required role assigned to the subscription'
-      };
-    } else {
-      $finalReportOutput += [pscustomobject]@{
-        TestName = 'Azure IAM Role'
-        Result   = 'FAILED'
-        Details  = "Signed user DOESN'T have any of the required role (Managed Application Contributor/Contributor/Owner) assigned to the subscription"
-      };
+  $currentContext = Get-AzContext
+  if ($currentContext.Account.Type -eq 'ManagedService') {
+    $finalReportOutput += [pscustomobject]@{
+      TestName = 'Azure IAM Role'
+      Result   = 'SKIPPED'
+      Details  = 'Unable to check role assignment for Managed Service Identity (MSI)'
+    };
+  } else {
+    $currentSignInName = $currentContext.Account.Id
+    try {
+      $listOfAssignedRoles = Get-AzRoleAssignment -SignInName $currentSignInName -ExpandPrincipalGroups | Where-Object Scope -EQ "/subscriptions/$subscriptionId"
+    } catch {
+      Write-Host "Error retrieving Azure role assignments: $_"
+      exit;
+    }
+    $collections = $listOfAssignedRoles.RoleDefinitionName
+    if ($listOfAssignedRoles) {
+      if ($collections -like 'Contributor' -or $collections -like 'Owner' -or $collections -like 'Managed Application Contributor Role') {
+        $finalReportOutput += [pscustomobject]@{
+          TestName = 'Azure IAM Role'
+          Result   = 'OK'
+          Details  = 'Signed user has at least one of the required role assigned to the subscription'
+        };
+      } else {
+        $finalReportOutput += [pscustomobject]@{
+          TestName = 'Azure IAM Role'
+          Result   = 'FAILED'
+          Details  = "Signed user DOESN'T have any of the required role (Managed Application Contributor/Contributor/Owner) assigned to the subscription"
+        };
+      }
     }
   }
-
   Write-Progress 'Checking IAM Role' -PercentComplete 100
 
   ####################

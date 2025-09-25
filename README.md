@@ -1,6 +1,6 @@
-# cloudblockstore-scripts
+# purestoragecloud-scripts
 ---
-This is a repository of sample scripts for Pure Cloud Block Store.
+This is a repository of sample scripts for Pure Storage Cloud Azure Native and Pure Storage Cloud Dedicated formally known as Cloud Block Store.
 
 
-Learn more at https://support.purestorage.com/Pure_Cloud_Block_Store
+Learn more at our Support Site on [Pure Storage Cloud](https://support.purestorage.com/category/m_pure_storage_cloud)

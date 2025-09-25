@@ -535,7 +535,7 @@ $zones = Get-AzComputeResourceSku -Location $region | Where-Object {$_.ResourceT
     #    exit 1 # Stop the script
     #}
     Write-Progress 'Creating a temporary test VM in System subnet' -PercentComplete 40
-    Update-AzConfig -DisplayBreakingChangeWarning $false -AppliesTo Az.Compute|Out-Null#Temp to Not Break Deployment
+    Update-AzConfig -DisplayBreakingChangeWarning $false -AppliesTo Az.Compute|Out-Null #Temp to Not Break Deployment
     Write-Progress 'Creating a temporary test VM in System subnet' -PercentComplete 50
     New-AzVM -ResourceGroupName $rg -Location $region -VM $VirtualMachine -WarningAction Stop | Out-Null
     Update-AzConfig -DisplayBreakingChangeWarning $true -AppliesTo Az.Compute|Out-Null #Temp to Reset Warning

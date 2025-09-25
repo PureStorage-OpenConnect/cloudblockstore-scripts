@@ -48,6 +48,7 @@ This script will validate and verify the following:
 - Check if there are any region or zonal restrictions on the instance.
 - Check if the PremiumV2 or Ultra Disks are available and in which Availability Zone.
 - Check if the System Subnet has outbound internet access to Pure1 cloud.
+<<<<<<< HEAD
 - Check if the Signed In User has the required Azure Role Assignment.
 
 CHANGELOG
@@ -64,3 +65,6 @@ CHANGELOG
 - 3/15/2024 3.0.1 Improved test for outbound connectivity (to deploy a test load balancer)
 - 3/12/2024 3.0.0 Script refactored, to provide a full report of the readiness of the environment for CBS deployment
 - 1/26/2024 2.0.1 Adding V20MP2R2 and PremiumV2 SSD support to the script
+=======
+- Check if the Signed In User has the required Azure Role Assignment.
+>>>>>>> 83d61ab55886af5b424a8f550cf06632d60bf9b7

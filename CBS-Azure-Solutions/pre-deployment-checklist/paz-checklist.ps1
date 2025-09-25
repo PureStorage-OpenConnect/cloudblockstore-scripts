@@ -1,6 +1,6 @@
 <#
     paz-checklist.ps1 -
-    Version:        3.1.0
+    Version:        3.1.1
     Author:         Vaclav Jirovsky, Adam Mazouz, David Stamen @ Pure Storage
 .SYNOPSIS
     Checking if the prerequisites required for deploying Cloud Block Store are met before create the array on Azure.
@@ -24,6 +24,7 @@
     Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first
         Connect-AzAccount
 .CHANGELOG
+    09/25/25 3.1.1 Bug Fixes
     09/18/25 3.1.0 Updated to add Support for V50MP2R2 Model
     09/02/25  3.0.9 Updated to check for Azure VM Regional and Zonal Restrictions
     08/20/25  3.0.8 Updated for Better Error Handling and Update fo VM Images
@@ -171,7 +172,7 @@ else {
   exit;
 }
 
-$CLI_VERSION = '3.1.0'
+$CLI_VERSION = '3.1.1'
 
 Write-Host -ForegroundColor DarkRed -BackgroundColor Black @"
  _____                   _____ _
@@ -309,7 +310,12 @@ try {
   ##  Azure VM Stuff Availability ##
   ##################################
 
-  $VMFamily = (Get-AzComputeResourceSku -Location $region | Where-Object ResourceType -EQ 'virtualMachines' | Select-Object Name, Family | Where-Object Name -EQ $vmSize | Select-Object -Property Family).Family
+  try {
+    $VMFamily = (Get-AzComputeResourceSku -Location $region | Where-Object ResourceType -EQ 'virtualMachines' | Select-Object Name, Family | Where-Object Name -EQ $vmSize | Select-Object -Property Family).Family
+  } catch {
+    Write-Host "Error retrieving VM Family for $vmSize in $region $_"
+    exit;
+  }
 
 
   $currentLimit = Get-AzVMUsage -Location $region | Where-Object { $_.Name.Value -eq $VMFamily } | Select-Object -ExpandProperty CurrentValue
@@ -335,7 +341,12 @@ try {
 
   Write-Progress 'Checking VM Region/Zone Restrictions limits' -PercentComplete 0
   Write-Progress 'Checking VM Region/Zone Restrictions limits' -PercentComplete 50
-  $VMRestrictions = Get-AzComputeResourceSku | Where-Object {$_.ResourceType -eq 'virtualMachines' -and $_.Name -eq $vmSize -and $_.Locations -eq $region}|Select-Object -ExpandProperty RestrictionInfo
+  try {
+    $VMRestrictions = Get-AzComputeResourceSku -Location $region | Where-Object { $_.ResourceType -eq 'virtualMachines' -and $_.Name -eq $vmSize } | Select-Object -ExpandProperty RestrictionInfo
+  } catch {
+    Write-Host "Error retrieving VM Region/Zone Restrictions: $_"
+    exit;
+  }
   if ($null -eq $VMRestrictions) {
     $finalReportOutput += [pscustomobject]@{
       TestName = 'VM Region/Zone Restrictions'
@@ -358,9 +369,12 @@ try {
   ###################
 
   Write-Progress 'Checking Managed Disk availability' -PercentComplete 0
-  $zones = Get-AzComputeResourceSku | Where-Object {
-    $_.ResourceType -eq 'disks' -and $_.Name -eq $diskType -and $_.Locations -eq $region
-  } | Select-Object -ExpandProperty LocationInfo | Select-Object -ExpandProperty Zones
+  try {
+$zones = Get-AzComputeResourceSku -Location $region | Where-Object {$_.ResourceType -eq 'disks' -and $_.Name -eq $diskType } | Select-Object -ExpandProperty LocationInfo | Select-Object -ExpandProperty Zones
+  } catch {
+    Write-Host "Error retrieving disk SKU availability: $_"
+    exit
+  }
 
   if ($zones) {
 
@@ -426,25 +440,38 @@ try {
   ## Azure IAM Roles ##
   ####################
   Write-Progress 'Checking IAM Role' -PercentComplete 0
-  $currentSignInName = (Get-AzContext).Account.Id
-  $listOfAssignedRoles = Get-AzRoleAssignment -SignInName $currentSignInName -ExpandPrincipalGroups | Where-Object Scope -EQ "/subscriptions/$subscriptionId"
-  $collections = $listOfAssignedRoles.RoleDefinitionName
-  if ($listOfAssignedRoles) {
-    if ($collections -like 'Contributor' -or $collections -like 'Owner' -or $collections -like 'Managed Application Contributor Role') {
-      $finalReportOutput += [pscustomobject]@{
-        TestName = 'Azure IAM Role'
-        Result   = 'OK'
-        Details  = 'Signed user has at least one of the required role assigned to the subscription'
-      };
-    } else {
-      $finalReportOutput += [pscustomobject]@{
-        TestName = 'Azure IAM Role'
-        Result   = 'FAILED'
-        Details  = "Signed user DOESN'T have any of the required role (Managed Application Contributor/Contributor/Owner) assigned to the subscription"
-      };
+  $currentContext = Get-AzContext
+  if ($currentContext.Account.Type -eq 'ManagedService') {
+    $finalReportOutput += [pscustomobject]@{
+      TestName = 'Azure IAM Role'
+      Result   = 'SKIPPED'
+      Details  = 'Unable to check role assignment for Managed Service Identity (MSI)'
+    };
+  } else {
+    $currentSignInName = $currentContext.Account.Id
+    try {
+      $listOfAssignedRoles = Get-AzRoleAssignment -SignInName $currentSignInName -ExpandPrincipalGroups | Where-Object Scope -EQ "/subscriptions/$subscriptionId"
+    } catch {
+      Write-Host "Error retrieving Azure role assignments: $_"
+      exit;
+    }
+    $collections = $listOfAssignedRoles.RoleDefinitionName
+    if ($listOfAssignedRoles) {
+      if ($collections -like 'Contributor' -or $collections -like 'Owner' -or $collections -like 'Managed Application Contributor Role') {
+        $finalReportOutput += [pscustomobject]@{
+          TestName = 'Azure IAM Role'
+          Result   = 'OK'
+          Details  = 'Signed user has at least one of the required role assigned to the subscription'
+        };
+      } else {
+        $finalReportOutput += [pscustomobject]@{
+          TestName = 'Azure IAM Role'
+          Result   = 'FAILED'
+          Details  = "Signed user DOESN'T have any of the required role (Managed Application Contributor/Contributor/Owner) assigned to the subscription"
+        };
+      }
     }
   }
-
   Write-Progress 'Checking IAM Role' -PercentComplete 100
 
   ####################
@@ -478,7 +505,7 @@ try {
   $NetworkSG = New-AzNetworkSecurityGroup -ResourceGroupName $rg -Location $region -Name "$tempVMName-NSG" -Force
   $NIC = New-AzNetworkInterface -Name "$tempVMName-NIC" -ResourceGroupName $rg -Location $region -Subnet $PSSubnet -LoadBalancerBackendAddressPool $bepool -NetworkSecurityGroup $NetworkSG -Force
 
-  Write-Progress 'Creating a temporary test VM in System subnet' -PercentComplete 50
+  Write-Progress 'Creating a temporary test VM in System subnet' -PercentComplete 20
 
   try {
     ## Set the VM Size and Type
@@ -507,9 +534,12 @@ try {
     #    Write-Error "VM Image not found for OS type '$tempVmOS'. Please check the Publisher, Offer, and SKU details."
     #    exit 1 # Stop the script
     #}
-
-
+    Write-Progress 'Creating a temporary test VM in System subnet' -PercentComplete 40
+    Update-AzConfig -DisplayBreakingChangeWarning $false -AppliesTo Az.Compute|Out-Null #Temp to Not Break Deployment
+    Write-Progress 'Creating a temporary test VM in System subnet' -PercentComplete 50
     New-AzVM -ResourceGroupName $rg -Location $region -VM $VirtualMachine -WarningAction Stop | Out-Null
+    Update-AzConfig -DisplayBreakingChangeWarning $true -AppliesTo Az.Compute|Out-Null #Temp to Reset Warning
+    Write-Progress 'Creating a temporary test VM in System subnet' -PercentComplete 60
     Set-AzVMExtension -ResourceGroupName $rg -Location $region -VMName $tempVMName -Name 'NetworkWatcherAgentLinux' -ExtensionType 'NetworkWatcherAgentLinux' -Publisher 'Microsoft.Azure.NetworkWatcher' -TypeHandlerVersion '1.4' | Out-Null
     # 2/ Wait for the VM to be created
     ####################

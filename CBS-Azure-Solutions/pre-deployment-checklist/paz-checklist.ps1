@@ -1,6 +1,6 @@
 <#
     paz-checklist.ps1 -
-    Version:        3.1.0
+    Version:        3.1.1
     Author:         Vaclav Jirovsky, Adam Mazouz, David Stamen @ Pure Storage
 .SYNOPSIS
     Checking if the prerequisites required for deploying Cloud Block Store are met before create the array on Azure.
@@ -24,6 +24,7 @@
     Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first
         Connect-AzAccount
 .CHANGELOG
+    09/25/25 3.1.1 Bug Fixes
     09/18/25 3.1.0 Updated to add Support for V50MP2R2 Model
     09/02/25  3.0.9 Updated to check for Azure VM Regional and Zonal Restrictions
     08/20/25  3.0.8 Updated for Better Error Handling and Update fo VM Images
@@ -171,7 +172,7 @@ else {
   exit;
 }
 
-$CLI_VERSION = '3.1.0'
+$CLI_VERSION = '3.1.1'
 
 Write-Host -ForegroundColor DarkRed -BackgroundColor Black @"
  _____                   _____ _
@@ -358,9 +359,12 @@ try {
   ###################
 
   Write-Progress 'Checking Managed Disk availability' -PercentComplete 0
-  $zones = Get-AzComputeResourceSku | Where-Object {
-    $_.ResourceType -eq 'disks' -and $_.Name -eq $diskType -and $_.Locations -eq $region
-  } | Select-Object -ExpandProperty LocationInfo | Select-Object -ExpandProperty Zones
+  try {
+$zones = Get-AzComputeResourceSku -Location $region | Where-Object {$_.ResourceType -eq 'disks' -and $_.Name -eq $diskType } | Select-Object -ExpandProperty LocationInfo | Select-Object -ExpandProperty Zones
+  } catch {
+    Write-Host "Error retrieving disk SKU availability: $_"
+    exit
+  }
 
   if ($zones) {
 

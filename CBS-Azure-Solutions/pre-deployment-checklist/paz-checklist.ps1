@@ -505,7 +505,7 @@ $zones = Get-AzComputeResourceSku -Location $region | Where-Object {$_.ResourceT
   $NetworkSG = New-AzNetworkSecurityGroup -ResourceGroupName $rg -Location $region -Name "$tempVMName-NSG" -Force
   $NIC = New-AzNetworkInterface -Name "$tempVMName-NIC" -ResourceGroupName $rg -Location $region -Subnet $PSSubnet -LoadBalancerBackendAddressPool $bepool -NetworkSecurityGroup $NetworkSG -Force
 
-  Write-Progress 'Creating a temporary test VM in System subnet' -PercentComplete 50
+  Write-Progress 'Creating a temporary test VM in System subnet' -PercentComplete 20
 
   try {
     ## Set the VM Size and Type
@@ -534,10 +534,12 @@ $zones = Get-AzComputeResourceSku -Location $region | Where-Object {$_.ResourceT
     #    Write-Error "VM Image not found for OS type '$tempVmOS'. Please check the Publisher, Offer, and SKU details."
     #    exit 1 # Stop the script
     #}
-
-    Update-AzConfig -DisplayBreakingChangeWarning $false -AppliesTo Az.Compute #Temp to Not Break Deployment
+    Write-Progress 'Creating a temporary test VM in System subnet' -PercentComplete 40
+    Update-AzConfig -DisplayBreakingChangeWarning $false -AppliesTo Az.Compute|Out-Null#Temp to Not Break Deployment
+    Write-Progress 'Creating a temporary test VM in System subnet' -PercentComplete 50
     New-AzVM -ResourceGroupName $rg -Location $region -VM $VirtualMachine -WarningAction Stop | Out-Null
-    Update-AzConfig -DisplayBreakingChangeWarning $true -AppliesTo Az.Compute #Temp to Reset Warning
+    Update-AzConfig -DisplayBreakingChangeWarning $true -AppliesTo Az.Compute|Out-Null #Temp to Reset Warning
+    Write-Progress 'Creating a temporary test VM in System subnet' -PercentComplete 60
     Set-AzVMExtension -ResourceGroupName $rg -Location $region -VMName $tempVMName -Name 'NetworkWatcherAgentLinux' -ExtensionType 'NetworkWatcherAgentLinux' -Publisher 'Microsoft.Azure.NetworkWatcher' -TypeHandlerVersion '1.4' | Out-Null
     # 2/ Wait for the VM to be created
     ####################

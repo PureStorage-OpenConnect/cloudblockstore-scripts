@@ -310,7 +310,12 @@ try {
   ##  Azure VM Stuff Availability ##
   ##################################
 
-  $VMFamily = (Get-AzComputeResourceSku -Location $region | Where-Object ResourceType -EQ 'virtualMachines' | Select-Object Name, Family | Where-Object Name -EQ $vmSize | Select-Object -Property Family).Family
+  try {
+    $VMFamily = (Get-AzComputeResourceSku -Location $region | Where-Object ResourceType -EQ 'virtualMachines' | Select-Object Name, Family | Where-Object Name -EQ $vmSize | Select-Object -Property Family).Family
+  } catch {
+    Write-Host "Error retrieving VM Family for $vmSize in $region $_"
+    exit;
+  }
 
 
   $currentLimit = Get-AzVMUsage -Location $region | Where-Object { $_.Name.Value -eq $VMFamily } | Select-Object -ExpandProperty CurrentValue
@@ -336,7 +341,12 @@ try {
 
   Write-Progress 'Checking VM Region/Zone Restrictions limits' -PercentComplete 0
   Write-Progress 'Checking VM Region/Zone Restrictions limits' -PercentComplete 50
-  $VMRestrictions = Get-AzComputeResourceSku -Location $region| Where-Object {$_.ResourceType -eq 'virtualMachines' -and $_.Name -eq $vmSize}|Select-Object -ExpandProperty RestrictionInfo
+  try {
+    $VMRestrictions = Get-AzComputeResourceSku -Location $region | Where-Object { $_.ResourceType -eq 'virtualMachines' -and $_.Name -eq $vmSize } | Select-Object -ExpandProperty RestrictionInfo
+  } catch {
+    Write-Host "Error retrieving VM Region/Zone Restrictions: $_"
+    exit;
+  }
   if ($null -eq $VMRestrictions) {
     $finalReportOutput += [pscustomobject]@{
       TestName = 'VM Region/Zone Restrictions'

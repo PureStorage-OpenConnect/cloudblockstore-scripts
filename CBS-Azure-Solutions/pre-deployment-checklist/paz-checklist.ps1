@@ -336,7 +336,7 @@ try {
 
   Write-Progress 'Checking VM Region/Zone Restrictions limits' -PercentComplete 0
   Write-Progress 'Checking VM Region/Zone Restrictions limits' -PercentComplete 50
-  $VMRestrictions = Get-AzComputeResourceSku | Where-Object {$_.ResourceType -eq 'virtualMachines' -and $_.Name -eq $vmSize -and $_.Locations -eq $region}|Select-Object -ExpandProperty RestrictionInfo
+  $VMRestrictions = Get-AzComputeResourceSku -Location $region| Where-Object {$_.ResourceType -eq 'virtualMachines' -and $_.Name -eq $vmSize}|Select-Object -ExpandProperty RestrictionInfo
   if ($null -eq $VMRestrictions) {
     $finalReportOutput += [pscustomobject]@{
       TestName = 'VM Region/Zone Restrictions'

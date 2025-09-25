@@ -535,8 +535,9 @@ $zones = Get-AzComputeResourceSku -Location $region | Where-Object {$_.ResourceT
     #    exit 1 # Stop the script
     #}
 
-
+    Update-AzConfig -DisplayBreakingChangeWarning $false -AppliesTo Az.Compute #Temp to Not Break Deployment
     New-AzVM -ResourceGroupName $rg -Location $region -VM $VirtualMachine -WarningAction Stop | Out-Null
+    Update-AzConfig -DisplayBreakingChangeWarning $true -AppliesTo Az.Compute #Temp to Reset Warning
     Set-AzVMExtension -ResourceGroupName $rg -Location $region -VMName $tempVMName -Name 'NetworkWatcherAgentLinux' -ExtensionType 'NetworkWatcherAgentLinux' -Publisher 'Microsoft.Azure.NetworkWatcher' -TypeHandlerVersion '1.4' | Out-Null
     # 2/ Wait for the VM to be created
     ####################

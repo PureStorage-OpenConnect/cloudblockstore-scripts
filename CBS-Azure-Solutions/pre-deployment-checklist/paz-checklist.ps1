@@ -1,10 +1,6 @@
 <#
     paz-checklist.ps1 -
-<<<<<<< HEAD
-    Version:        3.1.0
-=======
     Version:        3.1.1
->>>>>>> 83d61ab55886af5b424a8f550cf06632d60bf9b7
     Author:         Vaclav Jirovsky, Adam Mazouz, David Stamen @ Pure Storage
 .SYNOPSIS
     Checking if the prerequisites required for deploying Cloud Block Store are met before create the array on Azure.
@@ -28,10 +24,7 @@
     Option 2: Or use your local machine to install Azure Powershell Module and make sure to login to Azure first
         Connect-AzAccount
 .CHANGELOG
-<<<<<<< HEAD
-=======
     09/25/25 3.1.1 Bug Fixes
->>>>>>> 83d61ab55886af5b424a8f550cf06632d60bf9b7
     09/18/25 3.1.0 Updated to add Support for V50MP2R2 Model
     09/02/25  3.0.9 Updated to check for Azure VM Regional and Zonal Restrictions
     08/20/25  3.0.8 Updated for Better Error Handling and Update fo VM Images
@@ -179,11 +172,7 @@ else {
   exit;
 }
 
-<<<<<<< HEAD
-$CLI_VERSION = '3.1.0'
-=======
 $CLI_VERSION = '3.1.1'
->>>>>>> 83d61ab55886af5b424a8f550cf06632d60bf9b7
 
 Write-Host -ForegroundColor DarkRed -BackgroundColor Black @"
  _____                   _____ _

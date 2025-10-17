@@ -145,7 +145,7 @@ if ($cbsModel -eq 'V10MP2R2' -or $cbsModel -eq 'V20MP2R2') {
   'koreacentral',
   'koreasouth',
   'northcentralus',
-  'northeurope'
+  'northeurope',
   'polandcentral',
   'qatarcentral',
   'southafricanorth',
